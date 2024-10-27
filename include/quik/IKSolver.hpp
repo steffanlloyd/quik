@@ -44,30 +44,35 @@
 
 #pragma once
 
+#include <cassert>
 #include "Eigen/Dense"
 #include "quik/Robot.hpp"
 
+
 using namespace Eigen;
+
+/**
+ * @brief List of break reasons (reasons why the algorithm stopped)
+ * 
+ */
+enum BREAKREASON_t : uint8_t {
+    BREAKREASON_TOLERANCE = 0, // Tolerance reached
+    BREAKREASON_MIN_STEP, // minimum step size is reached
+    BREAKREASON_MAX_ITER, // Max iterations reached
+    BREAKREASON_GRAD_FAILS // Gradient failed to improve
+};
+
+enum ALGORITHM_t : uint8_t {
+    ALGORITHM_QUIK = 0, // Recommended: The QuIK method
+    ALGORITHM_NR, // Newton-Raphson or Levenberg-Marquardt
+    ALGORITHM_BFGS // Not recommended: The BFGS line search
+};
 
 class IKSolver {
 public:
 
-    /**
-     * @brief List of break reasons (reasons why the algorithm stopped)
-     * 
-     */
-    enum BREAKREASON_t : uint8_t {
-        BREAKREASON_TOLERANCE = 0, // Tolerance reached
-        BREAKREASON_MIN_STEP, // minimum step size is reached
-        BREAKREASON_MAX_ITER, // Max iterations reached
-        BREAKREASON_GRAD_FAILS // Gradient failed to improve
-    };
-
-    enum ALGORITHM_t : uint8_t {
-        ALGORITHM_QUIK = 0, // Recommended: The QuIK method
-        ALGORITHM_NR, // Newton-Raphson or Levenberg-Marquardt
-        ALGORITHM_BFGS // Not recommended: The BFGS line search
-    };
+    
+    
     
     // @brief iterMax [int]: Maximum number of iterations of the algorithm. Default: 100
 	int iterMax;
@@ -77,7 +82,7 @@ public:
     //     - ALGORITHM_NR - Newton-Raphson or Levenberg-Marquardt
     //     - ALGORITHM_BFGS - BFGS
     //     - Default: 0.
-	IKSolver::ALGORITHM_t algorithm;
+	ALGORITHM_t algorithm;
 
     // @brief The exit tolerance on the norm of the
     // error. Default: 1e-12.
@@ -156,8 +161,9 @@ public:
      * @brief IK A basic IK implementation of the QuIK, NR and BFGS algorithms. 
      * 
      * @param[in] R Robot& R: A Robot object to perform the IK on.
-     * @param[in] Twt Matrix<double,4*N,4>& Twt: Tall matrix of all the N desired robot poses
-     * vertically stacked.
+     * @param[in] Twt Matrix<double,4*N,4>& Twt: A transformation matrix from the world frame
+     * to the tool frame. To solve more than 1 transform simulataneously, stack the matrices on 
+     * top of each other. So for 4 poses, Twt would be a 16x4 matrix.
      * @param[in] Q0 Matrix<double,DOF,N>& Q0: Initial guesses of the joint angles
      * @param[out] Q_star  Matrix<double,DOF,N>& Qstar: [DOFxN] The solved joint angles
      * @param[out] e_star Matrix<double,6,N>&e: The pose errors at the final solution.
@@ -177,6 +183,13 @@ public:
     {
         // Get size of problem
         int N = (int) Q0.cols();
+
+        // Ensure inputs are properly given
+        assert(Twt.rows() == 4*N && "Number of rows in Twt should be 4*N (where N is the number of poses to solve).");  
+        assert(Q_star.cols() == N && "Q_star must be a <DOFxN> matrix (where N is the number of poses to solve).");
+        assert(e_star.cols() == N && "e_star must be a <6xN> matrix (where N is the number of poses to solve).");
+        assert(iter.size() == N && "iter must be a <6xN> matrix (where N is the number of poses to solve).");
+        assert(breakReason.size() == N && "breakReason must be a <6xN> matrix (where N is the number of poses to solve).");
         
         // Define function variables
         Vector<double,DOF> Q_i, dQ_i, s0;
@@ -209,7 +222,7 @@ public:
             e_i.fill(0);
             dQ_i.fill(0);
             iter_i = this->iterMax;
-            breakReason_i = IKSolver::BREAKREASON_MAX_ITER; // Initialize to this, it will be overwritten if it doesn't reach max iter
+            breakReason_i = BREAKREASON_MAX_ITER; // Initialize to this, it will be overwritten if it doesn't reach max iter
             e_i_prev_norm = 1e10;
             grad_fail_counter = 0;
             grad_fail_counter_total = 0;
@@ -220,7 +233,7 @@ public:
                 
                 // Get error, forward kinematics and jacobian
                 // Only do this for Newton and QuIK, or on first iteration
-                if (this->algorithm != IKSolver::ALGORITHM_BFGS || i == 0){
+                if (this->algorithm != ALGORITHM_BFGS || i == 0){
                     // Forward kinematics
                     R.FK( Q_i, T_i );
                     
@@ -236,7 +249,7 @@ public:
 
                 // Break, if exit tolerance has been reached
                 if (e_i_norm < this->exitTol){
-                    breakReason_i = IKSolver::BREAKREASON_TOLERANCE; // Tolerance reached
+                    breakReason_i = BREAKREASON_TOLERANCE; // Tolerance reached
                     iter_i = i;
                     break;
                 }
@@ -250,12 +263,12 @@ public:
                     grad_fail_counter++;
                     grad_fail_counter_total++;
                     if (grad_fail_counter > this->maxGradFails) {
-                        breakReason_i = IKSolver::BREAKREASON_GRAD_FAILS; // Grad consecutive fails reached
+                        breakReason_i = BREAKREASON_GRAD_FAILS; // Grad consecutive fails reached
                         iter_i = i;
                         break;
                     }
                     if (grad_fail_counter_total > this->maxGradFailsTotal) {
-                        breakReason_i = IKSolver::BREAKREASON_GRAD_FAILS; // Grad fails reached
+                        breakReason_i = BREAKREASON_GRAD_FAILS; // Grad fails reached
                         iter_i = i;
                         break;
                     }
@@ -273,7 +286,7 @@ public:
                 switch (this->algorithm){
                         
                         
-                    case IKSolver::ALGORITHM_QUIK:
+                    case ALGORITHM_QUIK:
                         // Halley's method (QuIK Method)
                         
                         // First, store the newton step in dQ_i (note, it's negative)
@@ -296,7 +309,7 @@ public:
                         
                         
                         
-                    case IKSolver::ALGORITHM_NR:
+                    case ALGORITHM_NR:
                         // Newton's method
                         this->lsolve<6>( J_i, e_i, dQ_i);
                         dQ_i *= -1;
@@ -304,7 +317,7 @@ public:
                         
                         
                         
-                    case IKSolver::ALGORITHM_BFGS:
+                    case ALGORITHM_BFGS:
                         // BFGS
                         // On first iteration, initialize some variables
                         if (i == 0){
@@ -340,7 +353,7 @@ public:
                         
                         // Break out if step size is too small
                         if (gamma < this->minStepSize){
-                            breakReason_i = IKSolver::BREAKREASON_MIN_STEP; // reached minimum step size
+                            breakReason_i = BREAKREASON_MIN_STEP; // reached minimum step size
                             iter_i = i;
                             break;
                         }
@@ -381,7 +394,7 @@ public:
                 
                 // Check grad tolerance, break if necessary
                 if (dQ_i.array().square().sum() < this->minStepSize * this->minStepSize){
-                    breakReason_i = IKSolver::BREAKREASON_MIN_STEP; // minimum step sized reached
+                    breakReason_i = BREAKREASON_MIN_STEP; // minimum step sized reached
                     iter_i = i;
                     break;
                 }
@@ -397,6 +410,66 @@ public:
         } // End of sample loop
         
     } // End of IK()
+
+
+    /**
+     * @brief IK Alternate calling syntax where every pose is called using a quaternion
+     * and position vector instead of a transformation matrix
+     * 
+     * @param[in] R Robot& R: A Robot object to perform the IK on.
+     * @param[in] quat Matrix<double,4,N>& quat: A 4-vector (w,x,y,z), or 4xN matrix of quaternions
+     * (one column for each pose to solve).
+     * @param[in] d Matrix<double,3,N>& d: A 3-vector (x,y,z), or 3xN matrix of displacement
+     * vectors (one columh for each pose to solve)
+     * @param[in] Q0 Matrix<double,DOF,N>& Q0: Initial guesses of the joint angles
+     * @param[out] Q_star  Matrix<double,DOF,N>& Qstar: [DOFxN] The solved joint angles
+     * @param[out] e_star Matrix<double,6,N>&e: The pose errors at the final solution.
+     * @param[out] iter Vector<int,N> iter: The number of iterations the algorithm took.
+     * @param[out] breakReason Vector<BREAKREASON_t,N> breakReason: The reason the algorithm stopped.
+     *          See BREAKREASON_t for list of reasons.
+     */
+    template<int DOF=Dynamic>
+    void IK(
+        const Robot<DOF>& R,
+		const Matrix<double,Dynamic,4>& quat,
+		const Matrix<double,Dynamic,3>& d,
+		const Matrix<double,DOF,Dynamic>& Q0,
+		Matrix<double,DOF,Dynamic>& Q_star,
+		Matrix<double,6,Dynamic>& e_star,
+		VectorXi& iter,
+		VectorXi& breakReason) const
+    {
+        // Get size of problem
+        int N = (int) Q0.cols();
+        constexpr int DOF4 = DOF>0 ? (DOF+1)*4 : -1;
+
+        // Assert that the problem is properly defined
+        assert(quat.cols() == N && "quat must be a <4xN> matrix (where N is the number of poses to solve).");
+        assert(d.cols() == N && "d must be a <3xN> matrix (where N is the number of poses to solve).");
+
+        // Create the transformation matrix Twt from quat and d
+        Matrix<double,DOF4,4> Twt(4*N, 4);
+        for(int i = 0; i < N; ++i){
+            // Convert quaternion to rotation matrix
+            Quaterniond quaternion(quat(0,i), quat(1,i), quat(2,i), quat(3,i));
+            Matrix3d rotation = quaternion.normalized().toRotationMatrix();
+            
+            // Construct the 4x4 transformation matrix
+            Matrix4d T;
+            T.block<3,3>(0,0) = rotation;
+            T.block<3,1>(0,3) = d.col(i);
+            T.row(3) << 0, 0, 0, 1;
+
+            // Add transformation matrix to Twt
+            Twt.block<4,4>(4*i, 0) = T;
+        }
+
+        // Call the first version of IK
+        this->IK(R, Twt, Q0, Q_star, e_star, iter, breakReason);
+
+    }
+
+
 
     /**
      * @brief Computes the inverse of a 4x4 homogenious transformation matrix

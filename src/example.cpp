@@ -47,7 +47,7 @@ const Robot<6> R(
 // Define the IK options
 const IKSolver IKS(
     200, // max number of iterations
-    IKSolver::ALGORITHM_QUIK, // algorithm (IKSolver::ALGORITHM_QUIK, IKSolver::ALGORITHM_NR or IKSolver::ALGORITHM_BFGS)
+    ALGORITHM_QUIK, // algorithm (ALGORITHM_QUIK, ALGORITHM_NR or ALGORITHM_BFGS)
     1e-12, // Exit tolerance
     1e-14, // Minimum step tolerance
     0.05, // iteration-to-iteration improvement tolerance (0.05 = 5% relative improvement)

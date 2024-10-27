@@ -1,0 +1,68 @@
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
+# Unignore all dirs
+!*/
+
+# Don't track content of these folders
+**/codegen/
+codegen/
+*media/
+*slprj/
+*bak/
+**/bak/
+/temp/*
+scripts/
+*.autosave
+*.asv
+save_data/*
+**/save_data/*
+
+# Ignore config file
+*config.m
+
+# Ignore simulink real time folders
+*_maci64/
+*_rtt/
+*_sldrt_ert_maci64/
+*sldrt_maci64/
+*_rtw/
+**_rtw/
+*.rxm64
+*.slxc
+*.prj
+
+*.DS_store
+
+# Ignore sublime folders
+*.sublime-project
+*.sublime-workspace
+*.xcodeproj
+
+# Compiled source #
+###################
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+*.so
+*.mex*
+*.mexmaci64
+
+# Packages #
+############
+# it's better to unpack these files and commit the raw source
+# git has its own built in compression methods
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip

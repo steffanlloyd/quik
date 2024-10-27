@@ -45,8 +45,10 @@
 #pragma once
 
 #include <cassert>
+#include <memory>
 #include "Eigen/Dense"
 #include "quik/Robot.hpp"
+#include "quik/Geometry.hpp"
 
 
 using namespace Eigen;
@@ -68,11 +70,12 @@ enum ALGORITHM_t : uint8_t {
     ALGORITHM_BFGS // Not recommended: The BFGS line search
 };
 
+template<int DOF=Dynamic>
 class IKSolver {
 public:
 
-    
-    
+    // @brief Robot R: The robot object that is being solved.
+    std::shared_ptr<Robot<DOF>> R;
     
     // @brief iterMax [int]: Maximum number of iterations of the algorithm. Default: 100
 	int iterMax;
@@ -131,6 +134,7 @@ public:
 
     // Constructor
 	IKSolver(
+        std::shared_ptr<Robot<DOF>> _R,
         int _iterMax = 100,
         ALGORITHM_t _algorithm = ALGORITHM_QUIK,
         double _exitTol = 1e-12,
@@ -143,43 +147,305 @@ public:
         double _maxAngularErrorStep = 1,
         double _armijoRuleSigma = 1e-5,
         double _armijoRuleBeta = 0.5 )
-        : iterMax(_iterMax),
-        algorithm(_algorithm),
-        exitTol(_exitTol),
-        minStepSize(_minStepSize),
-        relImprovementTol(_relImprovementTol),
-        maxGradFails(_maxGradFails),
-        maxGradFailsTotal(_maxGradFailsTotal),
-        lambda2(_lambda2),
-        maxLinearErrorStep(_maxLinearErrorStep),
-        maxAngularErrorStep(_maxAngularErrorStep),
-        armijoRuleSigma(_armijoRuleSigma),
-        armijoRuleBeta(_armijoRuleBeta)
+        :   R(_R),
+            iterMax(_iterMax),
+            algorithm(_algorithm),
+            exitTol(_exitTol),
+            minStepSize(_minStepSize),
+            relImprovementTol(_relImprovementTol),
+            maxGradFails(_maxGradFails),
+            maxGradFailsTotal(_maxGradFailsTotal),
+            lambda2(_lambda2),
+            maxLinearErrorStep(_maxLinearErrorStep),
+            maxAngularErrorStep(_maxAngularErrorStep),
+            armijoRuleSigma(_armijoRuleSigma),
+            armijoRuleBeta(_armijoRuleBeta)
     {}
 
     /**
      * @brief IK A basic IK implementation of the QuIK, NR and BFGS algorithms. 
      * 
-     * @param[in] R Robot& R: A Robot object to perform the IK on.
+     * @param[in] Twt Matrix4d& Twt: A transformation matrix from the world frame
+     * to the tool frame.
+     * @param[in] Q0 Matrix<double,DOF>& Q0: Initial guesses of the joint angles
+     * @param[out] Q_star  Matrix<double,DOF>& Qstar: [DOF] The solved joint angles
+     * @param[out] e_star Matrix<double,6>&e: The pose errors at the final solution.
+     * @param[out] iter int iter: The number of iterations the algorithm took.
+     * @param[out] breakReason BREAKREASON_t breakReason: The reason the algorithm stopped.
+     *          See BREAKREASON_t for list of reasons.
+     */
+    void IK(
+		const Matrix4d& Twt,
+		const Vector<double,DOF>& Q0,
+		Vector<double,DOF>& Q_star,
+		Vector<double,6>& e_star,
+		int& iter,
+		BREAKREASON_t& breakReason) const
+    {
+        // Initialize variables
+        Vector<double,DOF>  Q = Q0;     // Holds the current solution guess
+        Vector<double,DOF>  dQ,         // Holds the iterative joint step computed by the algorithm
+                            s0,         // Holds the step size in the BFGS line search
+                            grad_i,     // Gradient of current iteration (used in BFGS)
+                            grad_ip1,   //  Gradient of next iteration (used in BFGS)
+                            y;          // Estimated Hessian (used in BFGS)
+        Vector<double,6>    e;          // The error vector.
+        Matrix<double,6,DOF> J(6, this->R->dof), // Holds the robot jacobian
+                            A;          // Holds the Hessian product term for the QuIK algorithm
+        Matrix<double,DOF,DOF> H_i;     // H variable, used in bfgs algorithm
+        int 	grad_fail_counter = 0,  // Holds a count of the times the gradient has failed
+                grad_fail_counter_total = 0;
+        double 	e_norm = 0,             // Holds the normed error
+                e_prev_norm = 1e10,     // Holds the normed error (previous iteration)
+                error_relImprovement = 0,
+                cost_i = 1e10,          // Used in BFGS
+                cost_ip1 = 1e10,        // Used in BFGS
+                gamma,                  // Used in BFGS
+                rho,                    // Used in BFGS
+                delta;                  // Used in BFGS
+
+        // Init variable that can store all the transforms for each frame of orobt
+        constexpr int DOF4 = DOF>0 ? (DOF+1)*4 : -1;
+        Matrix<double,DOF4,4> T((this->R->dof+1)*4, 4); // Holds the forward kinematics for each joint
+
+        // Preassign some values
+        e.fill(0);
+        dQ.fill(0);
+        iter = this->iterMax;
+        breakReason = BREAKREASON_MAX_ITER; // Initialize to this, it will be overwritten if it doesn't reach max iter
+        
+        // Start IK iterations
+        for (int i = 0; i < this->iterMax; i++){
+            
+            // Get error, forward kinematics and jacobian
+            // Only do this for Newton and QuIK, or on first iteration
+            if (this->algorithm != ALGORITHM_BFGS || i == 0){
+                // Update T with forward kinematics
+                this->R->FK( Q, T );
+                
+                // Get jacobian, store it in J
+                this->R->jacobian(T, J, true);
+                
+                // Update error between target and current error, store in e
+                Geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
+            }
+            
+            // Calculate norm
+            e_norm = e.norm();
+
+            // Break, if exit tolerance has been reached
+            if (e_norm < this->exitTol){
+                breakReason = BREAKREASON_TOLERANCE; // Tolerance reached
+                iter = i;
+                break;
+            }
+            
+            // Check relative improvement in error
+            // We break if the relative improvement fails this->maxGradFails times in a row, or if
+            // it fails this->maxGradFailsTotal total
+            error_relImprovement = (e_prev_norm - e_norm) / e_prev_norm;
+            if (error_relImprovement < this->relImprovementTol){
+                // If relative improvement is below threshold, increment counters
+                grad_fail_counter++;
+                grad_fail_counter_total++;
+                if (grad_fail_counter > this->maxGradFails) {
+                    breakReason = BREAKREASON_GRAD_FAILS; // Grad consecutive fails reached
+                    iter = i;
+                    break;
+                }
+                if (grad_fail_counter_total > this->maxGradFailsTotal) {
+                    breakReason = BREAKREASON_GRAD_FAILS; // Grad fails reached
+                    iter = i;
+                    break;
+                }
+            }else{
+                grad_fail_counter = 1;
+            }
+
+            // Store prev value
+            e_prev_norm = e_norm;
+            
+            // Clamp error, before taking steps
+            this->clampMag(e);
+            
+            // Go to switch statement to do work of each individual algorithm
+            switch (this->algorithm){
+                    
+                    
+                case ALGORITHM_QUIK:
+                    // Halley's method (QuIK Method)
+                    
+                    // First, store the newton step in dQ (note, it's negative)
+                    this->lsolve( J, e, dQ);
+                    
+                    // Then, negate it and divide by two
+                    dQ *= -0.5;
+                    
+                    // Assign jacobian to A so that it gets added to it
+                    A = J;
+
+                    // Get gradient product, this gets added automatically since A holds J
+                    this->R->hessianProduct( J, dQ, A );
+                                        
+                    // Resolve
+                    this->lsolve(A, e, dQ);
+                    dQ *= -1;
+                    
+                    break;
+                    
+                    
+                    
+                case ALGORITHM_NR:
+                    // Newton's method
+                    this->lsolve( J, e, dQ);
+                    dQ *= -1;
+                    break;
+                    
+                    
+                    
+                case ALGORITHM_BFGS:
+                    // BFGS
+                    // On first iteration, initialize some variables
+                    if (i == 0){
+                        H_i = Matrix<double,DOF,DOF>::Identity(this->R->dof, this->R->dof);
+                        grad_i = J.transpose() * e;
+                        cost_i = 0.5*e.array().square().sum();
+                    }
+                    
+                    // Get initial step
+                    s0 = -H_i*grad_i;
+                    
+                    // Initialize line search
+                    gamma = 1;
+                    
+                    // Recalculate cost and error
+                    this->R->FK( Q + gamma*s0, T );
+                    Geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
+                    cost_ip1 = 0.5*e.array().square().sum();
+                    
+                    // Do line search
+                    while ((cost_i - cost_ip1) < -this->armijoRuleSigma * grad_i.transpose()*(gamma*s0)){
+                        // Reduce gamma
+                        gamma = this->armijoRuleBeta * gamma;
+                        
+                        // Break if step size is too small (prevents infinite loops too)
+                        if (gamma < this->minStepSize) break;
+                        
+                        // Recalculate cost
+                        this->R->FK( Q + gamma*s0, T );
+                        Geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
+                        cost_ip1 = 0.5*e.array().square().sum();
+                    }
+                    
+                    // Break out if step size is too small
+                    if (gamma < this->minStepSize){
+                        breakReason = BREAKREASON_MIN_STEP; // reached minimum step size
+                        iter = i;
+                        break;
+                    }
+                    
+                    // Take step
+                    dQ = gamma*s0;
+                    
+                    // Update gradient (T and e are already updated)
+                    this->R->jacobian(T, J);
+                    grad_ip1 = J.transpose() * e;
+                    
+                    // Update gradient
+                    y = grad_ip1 - grad_i;
+                    rho = dQ.transpose() * y;
+                    delta = y.transpose() * H_i * y;
+                    if (rho > delta && rho > numeric_limits<double>::epsilon())
+                        H_i = H_i + ( (1 + delta/rho) * dQ*dQ.transpose() - dQ*y.transpose()*H_i - H_i*y*dQ.transpose())/rho;
+                    else if (delta > numeric_limits<double>::epsilon() && rho > numeric_limits<double>::epsilon())
+                        H_i = H_i + (dQ*dQ.transpose())/rho - H_i*(y*y.transpose())*H_i/delta;
+                    
+                    // Update variables for next time
+                    grad_i = grad_ip1;
+                    cost_i = cost_ip1;
+                    
+                    break;
+
+                    
+                default:
+                    // invalid input
+                    cout << "Invalid algorithm specified!" << endl;
+                    dQ.fill(0);
+                    
+                    
+            } // end of algorithm switch statement
+                        
+            // Apply change
+            Q += dQ;
+            
+            // Check grad tolerance, break if necessary
+            if (dQ.array().square().sum() < this->minStepSize * this->minStepSize){
+                breakReason = BREAKREASON_MIN_STEP; // minimum step sized reached
+                iter = i;
+                break;
+            }
+            
+        } // End of IK loop
+        
+        // Store solutions
+        Q_star = Q;
+        e_star = e;
+    }
+
+    /**
+     * @brief IK Alternate calling syntax where the pose is provided using a quaternion
+     * and position vector instead of a transformation matrix
+     * 
+     * @param[in] quat Vector<double,4>& quat: A 4-vector (x,y,z,w), or 4xN matrix of quaternions
+     * (one column for each pose to solve).
+     * @param[in] d Vector<double,3>& d: A 3-vector (x,y,z), or 3xN matrix of displacement
+     * vectors (one column for each pose to solve).
+     * @param[in] Q0 Vector<double,DOF>& Q0: Initial guesses of the joint angles
+     * @param[out] Q_star  Matrix<double,DOF>& Qstar: [DOF] The solved joint angles
+     * @param[out] e_star Matrix<double,6>&e: The pose errors at the final solution.
+     * @param[out] iter int iter: The number of iterations the algorithm took.
+     * @param[out] breakReason BREAKREASON_t breakReason: The reason the algorithm stopped.
+     *          See BREAKREASON_t for list of reasons.
+     */
+    void IK(
+		const Vector<double,4>& quat,
+		const Vector<double,3>& d,
+		const Vector<double,DOF>& Q0,
+		Vector<double,DOF>& Q_star,
+		Vector<double,6>& e_star,
+		int& iter,
+		BREAKREASON_t& breakReason) const
+    {
+        // Initialize and compute Twt
+        Matrix4d Twt;
+        Geometry::quatpos2hgt(quat, d, Twt);
+
+        // Call the first version of IK
+        this->IK(Twt, Q0, Q_star, e_star, iter, breakReason);
+    }
+
+
+    /**
+     * @brief IK A basic IK implementation of the QuIK, NR and BFGS algorithms. This calling 
+     * syntax allows to solve multiple inverse kinematics at once.
+     * 
      * @param[in] Twt Matrix<double,4*N,4>& Twt: A transformation matrix from the world frame
      * to the tool frame. To solve more than 1 transform simulataneously, stack the matrices on 
      * top of each other. So for 4 poses, Twt would be a 16x4 matrix.
      * @param[in] Q0 Matrix<double,DOF,N>& Q0: Initial guesses of the joint angles
      * @param[out] Q_star  Matrix<double,DOF,N>& Qstar: [DOFxN] The solved joint angles
      * @param[out] e_star Matrix<double,6,N>&e: The pose errors at the final solution.
-     * @param[out] iter Vector<int,N> iter: The number of iterations the algorithm took.
-     * @param[out] breakReason Vector<BREAKREASON_t,N> breakReason: The reason the algorithm stopped.
+     * @param[out] iter std::vector<int>& iter: The number of iterations the algorithm took.
+     * @param[out] breakReason std::vector<BREAKREASON_t>& breakReason: The reason the algorithm stopped.
      *          See BREAKREASON_t for list of reasons.
      */
-    template<int DOF=Dynamic>
     void IK(
-        const Robot<DOF>& R,
 		const Matrix<double,Dynamic,4>& Twt,
 		const Matrix<double,DOF,Dynamic>& Q0,
 		Matrix<double,DOF,Dynamic>& Q_star,
 		Matrix<double,6,Dynamic>& e_star,
-		VectorXi& iter,
-		VectorXi& breakReason) const
+		std::vector<int>& iter,
+		std::vector<BREAKREASON_t>& breakReason) const
     {
         // Get size of problem
         int N = (int) Q0.cols();
@@ -189,224 +455,30 @@ public:
         assert(Q_star.cols() == N && "Q_star must be a <DOFxN> matrix (where N is the number of poses to solve).");
         assert(e_star.cols() == N && "e_star must be a <6xN> matrix (where N is the number of poses to solve).");
         assert(iter.size() == N && "iter must be a <6xN> matrix (where N is the number of poses to solve).");
-        assert(breakReason.size() == N && "breakReason must be a <6xN> matrix (where N is the number of poses to solve).");
-        
-        // Define function variables
-        Vector<double,DOF> Q_i, dQ_i, s0;
-        constexpr int DOF4 = DOF>0 ? (DOF+1)*4 : -1;
-        Matrix<double,DOF4,4> T_i((R.dof+1)*4, 4);
-        Matrix4d Twt_i;
-        Vector<double,6> e_i, Hg_i;
-        Vector<double,DOF>  grad_i, grad_ip1, y;
-        Matrix<double,6,DOF> J_i(6, R.dof), A_i;
-        Matrix<double,DOF,DOF> H_i;
-        int 	iter_i,
-                breakReason_i,
-                grad_fail_counter,
-                grad_fail_counter_total;
-        double 	e_i_norm = 0,
-                e_i_prev_norm,
-                error_relImprovement = 0,
-                cost_i = 1e10,
-                cost_ip1 = 1e10,
-                gamma,
-                rho,
-                delta;
-        
+        assert(breakReason.size() == N && "breakReason must be a <6xN> matrix (where N is the number of poses to solve).");       
 
         // Start iterations over poses to solve
         for (int i = 0; i < N; i++){
-        
-            // Start solver
-            Q_i = Q0.col(i);
-            e_i.fill(0);
-            dQ_i.fill(0);
-            iter_i = this->iterMax;
-            breakReason_i = BREAKREASON_MAX_ITER; // Initialize to this, it will be overwritten if it doesn't reach max iter
-            e_i_prev_norm = 1e10;
-            grad_fail_counter = 0;
-            grad_fail_counter_total = 0;
-            Twt_i = Twt.middleRows<4>(4*i);
-            
-            // Start IK iterations
-            for (int i = 0; i < this->iterMax; i++){
-                
-                // Get error, forward kinematics and jacobian
-                // Only do this for Newton and QuIK, or on first iteration
-                if (this->algorithm != ALGORITHM_BFGS || i == 0){
-                    // Forward kinematics
-                    R.FK( Q_i, T_i );
-                    
-                    // Get jacobian (needed for all algorithms)
-                    R.jacobian(T_i, J_i, true);
-                    
-                    // Get error
-                    this->hgtDiff( T_i.template bottomRows<4>(), Twt_i, e_i );
-                }
-                
-                // Calculate norm
-                e_i_norm = e_i.norm();
+            // Init variables to store answers
+            Vector<double,DOF> Q_star_i;
+            Vector<double,6> e_star_i;
+            int iter_i;
+            BREAKREASON_t breakReason_i;
 
-                // Break, if exit tolerance has been reached
-                if (e_i_norm < this->exitTol){
-                    breakReason_i = BREAKREASON_TOLERANCE; // Tolerance reached
-                    iter_i = i;
-                    break;
-                }
-                
-                // Check relative improvement in error
-                // We break if the relative improvement fails this->maxGradFails times in a row, or if
-                // it fails this->maxGradFailsTotal total
-                error_relImprovement = (e_i_prev_norm - e_i_norm) / e_i_prev_norm;
-                if (error_relImprovement < this->relImprovementTol){
-                    // If relative improvement is below threshold, increment counters
-                    grad_fail_counter++;
-                    grad_fail_counter_total++;
-                    if (grad_fail_counter > this->maxGradFails) {
-                        breakReason_i = BREAKREASON_GRAD_FAILS; // Grad consecutive fails reached
-                        iter_i = i;
-                        break;
-                    }
-                    if (grad_fail_counter_total > this->maxGradFailsTotal) {
-                        breakReason_i = BREAKREASON_GRAD_FAILS; // Grad fails reached
-                        iter_i = i;
-                        break;
-                    }
-                }else{
-                    grad_fail_counter = 1;
-                }
+            this->IK(
+                Twt.middleRows<4>(4*i),
+                Q0.col(i),
+                Q_star_i,
+                e_star_i,
+                iter_i,
+                breakReason_i);
 
-                // Store prev value
-                e_i_prev_norm = e_i_norm;
-                
-                // Clamp error
-                this->clampMag(e_i);
-                
-                // Go to switch statement to do work of each individual algorithm
-                switch (this->algorithm){
-                        
-                        
-                    case ALGORITHM_QUIK:
-                        // Halley's method (QuIK Method)
-                        
-                        // First, store the newton step in dQ_i (note, it's negative)
-                        this->lsolve<6>( J_i, e_i, dQ_i);
-                        
-                        // Then, negate it and divide by two
-                        dQ_i *= -0.5;
-                        
-                        // Assign jacobian to A_i so that it gets added to it
-                        A_i = J_i;
+            // Assign answers
+            Q_star.col(i) = Q_star_i;
+            e_star.col(i) = e_star_i;
+            iter[i] = iter_i;
+            breakReason[i] = breakReason_i;
 
-                        // Get gradient product
-                        R.hessianProduct( J_i, dQ_i, A_i );
-                                            
-                        // Resolve
-                        this->lsolve<6>(A_i, e_i, dQ_i);
-                        dQ_i *= -1;
-                        
-                        break;
-                        
-                        
-                        
-                    case ALGORITHM_NR:
-                        // Newton's method
-                        this->lsolve<6>( J_i, e_i, dQ_i);
-                        dQ_i *= -1;
-                        break;
-                        
-                        
-                        
-                    case ALGORITHM_BFGS:
-                        // BFGS
-                        // On first iteration, initialize some variables
-                        if (i == 0){
-                            H_i = Matrix<double,DOF,DOF>::Identity(R.dof,R.dof);
-                            grad_i = J_i.transpose() * e_i;
-                            cost_i = 0.5*e_i.array().square().sum();
-                        }
-                        
-                        // Get initial step
-                        s0 = -H_i*grad_i;
-                        
-                        // Initialize line search
-                        gamma = 1;
-                        
-                        // Recalculate cost and error
-                        R.FK( Q_i + gamma*s0, T_i );
-                        this->hgtDiff( T_i.template bottomRows<4>(), Twt_i, e_i );
-                        cost_ip1 = 0.5*e_i.array().square().sum();
-                        
-                        // Do line search
-                        while ((cost_i - cost_ip1) < -this->armijoRuleSigma * grad_i.transpose()*(gamma*s0)){
-                            // Reduce gamma
-                            gamma = this->armijoRuleBeta * gamma;
-                            
-                            // Break if step size is too small (prevents infinite loops too)
-                            if (gamma < this->minStepSize) break;
-                            
-                            // Recalculate cost
-                            R.FK( Q_i + gamma*s0, T_i );
-                            this->hgtDiff( T_i.template bottomRows<4>(), Twt_i, e_i );
-                            cost_ip1 = 0.5*e_i.array().square().sum();
-                        }
-                        
-                        // Break out if step size is too small
-                        if (gamma < this->minStepSize){
-                            breakReason_i = BREAKREASON_MIN_STEP; // reached minimum step size
-                            iter_i = i;
-                            break;
-                        }
-                        
-                        // Take step
-                        dQ_i = gamma*s0;
-                        
-                        // Update gradient (T_i and e_i are already updated)
-                        R.jacobian(T_i, J_i);
-                        grad_ip1 = J_i.transpose() * e_i;
-                        
-                        // Update gradient
-                        y = grad_ip1 - grad_i;
-                        rho = dQ_i.transpose() * y;
-                        delta = y.transpose() * H_i * y;
-                        if (rho > delta && rho > numeric_limits<double>::epsilon())
-                            H_i = H_i + ( (1 + delta/rho) * dQ_i*dQ_i.transpose() - dQ_i*y.transpose()*H_i - H_i*y*dQ_i.transpose())/rho;
-                        else if (delta > numeric_limits<double>::epsilon() && rho > numeric_limits<double>::epsilon())
-                            H_i = H_i + (dQ_i*dQ_i.transpose())/rho - H_i*(y*y.transpose())*H_i/delta;
-                        
-                        // Update variables for next time
-                        grad_i = grad_ip1;
-                        cost_i = cost_ip1;
-                        
-                        break;
-
-                        
-                    default:
-                        // invalid input
-                        cout << "Invalid algorithm specified!" << endl;
-                        dQ_i.fill(0);
-                        
-                        
-                } // end of algorithm switch statement
-                            
-                // Apply change
-                Q_i += dQ_i;
-                
-                // Check grad tolerance, break if necessary
-                if (dQ_i.array().square().sum() < this->minStepSize * this->minStepSize){
-                    breakReason_i = BREAKREASON_MIN_STEP; // minimum step sized reached
-                    iter_i = i;
-                    break;
-                }
-                
-            } // End of IK loop
-            
-            // Store solutions
-            Q_star.col(i) = Q_i;
-            e_star.col(i) = e_i;
-            iter(i) = iter_i;
-            breakReason(i) = breakReason_i;
-            
         } // End of sample loop
         
     } // End of IK()
@@ -416,153 +488,35 @@ public:
      * @brief IK Alternate calling syntax where every pose is called using a quaternion
      * and position vector instead of a transformation matrix
      * 
-     * @param[in] R Robot& R: A Robot object to perform the IK on.
-     * @param[in] quat Matrix<double,4,N>& quat: A 4-vector (w,x,y,z), or 4xN matrix of quaternions
+     * @param[in] quat Matrix<double,4,N>& quat: A 4-vector (x,y,z,w), or 4xN matrix of quaternions
      * (one column for each pose to solve).
      * @param[in] d Matrix<double,3,N>& d: A 3-vector (x,y,z), or 3xN matrix of displacement
      * vectors (one columh for each pose to solve)
      * @param[in] Q0 Matrix<double,DOF,N>& Q0: Initial guesses of the joint angles
      * @param[out] Q_star  Matrix<double,DOF,N>& Qstar: [DOFxN] The solved joint angles
      * @param[out] e_star Matrix<double,6,N>&e: The pose errors at the final solution.
-     * @param[out] iter Vector<int,N> iter: The number of iterations the algorithm took.
-     * @param[out] breakReason Vector<BREAKREASON_t,N> breakReason: The reason the algorithm stopped.
+     * @param[out] iter std::vector<int>& iter: The number of iterations the algorithm took.
+     * @param[out] breakReason std::vector<BREAKREASON_t>& breakReason: The reason the algorithm stopped.
      *          See BREAKREASON_t for list of reasons.
      */
-    template<int DOF=Dynamic>
     void IK(
-        const Robot<DOF>& R,
-		const Matrix<double,Dynamic,4>& quat,
-		const Matrix<double,Dynamic,3>& d,
+		const Matrix<double,4,Dynamic>& quat,
+		const Matrix<double,3,Dynamic>& d,
 		const Matrix<double,DOF,Dynamic>& Q0,
 		Matrix<double,DOF,Dynamic>& Q_star,
 		Matrix<double,6,Dynamic>& e_star,
-		VectorXi& iter,
-		VectorXi& breakReason) const
+		std::vector<int>& iter,
+		std::vector<BREAKREASON_t>& breakReason) const
     {
-        // Get size of problem
-        int N = (int) Q0.cols();
+        // Convert to homogenous transform
         constexpr int DOF4 = DOF>0 ? (DOF+1)*4 : -1;
-
-        // Assert that the problem is properly defined
-        assert(quat.cols() == N && "quat must be a <4xN> matrix (where N is the number of poses to solve).");
-        assert(d.cols() == N && "d must be a <3xN> matrix (where N is the number of poses to solve).");
-
-        // Create the transformation matrix Twt from quat and d
-        Matrix<double,DOF4,4> Twt(4*N, 4);
-        for(int i = 0; i < N; ++i){
-            // Convert quaternion to rotation matrix
-            Quaterniond quaternion(quat(0,i), quat(1,i), quat(2,i), quat(3,i));
-            Matrix3d rotation = quaternion.normalized().toRotationMatrix();
-            
-            // Construct the 4x4 transformation matrix
-            Matrix4d T;
-            T.block<3,3>(0,0) = rotation;
-            T.block<3,1>(0,3) = d.col(i);
-            T.row(3) << 0, 0, 0, 1;
-
-            // Add transformation matrix to Twt
-            Twt.block<4,4>(4*i, 0) = T;
-        }
+        Matrix<double,DOF4,4> Twt;
+        Geometry::quatpos2hgt(quat, d, Twt);
 
         // Call the first version of IK
-        this->IK(R, Twt, Q0, Q_star, e_star, iter, breakReason);
-
+        this->IK(Twt, Q0, Q_star, e_star, iter, breakReason);
     }
 
-
-
-    /**
-     * @brief Computes the inverse of a 4x4 homogenious transformation matrix
-     * Much faster than actually inverting it since the computations are easy
-     * The rotation portion of the transform is just transposed to invert it.
-     * Then, the displacement section is just rotated and negated.
-     * 
-     * @param[in] T The matrix to invert (passed as reference)
-     * @return Matrix4d 
-     */
-    static Matrix4d hgtInv( const Matrix4d& T )
-    {
-        Matrix4d Tinv;
-        Tinv.topLeftCorner<3,3>() = T.topLeftCorner<3,3>().transpose();
-        Tinv.topRightCorner<3,1>() = -Tinv.topLeftCorner<3,3>()*T.topRightCorner<3,1>();
-        Tinv.bottomLeftCorner<1,3>().fill(0);
-        Tinv(3,3) = 1;
-        return Tinv;
-    }
-
-    /**
-     * @brief Calculates the error between two homogeneous transforms.
-     * 
-     *  Algorithm used is as described in
-     *  [1] T. Sugihara, “Solvability-Unconcerned Inverse Kinematics
-     *  by the Levenberg–Marquardt Method,” IEEE Trans. Robot.,
-     *  vol. 27, no. 5, pp. 984–991, Oct. 2011.
-     * 
-     * @param[in] T1 The first transform
-     * @param[in] T2 The second transform
-     * @param[out] e The error (passed as reference and transformed)
-     */
-    static void hgtDiff(const Matrix4d& T1, const Matrix4d& T2, Vector<double,6>& e)
-    {
-        Matrix3d R1, R2, Re;
-        Vector3d d1, d2, eps;
-        double eps_norm, t;
-        
-        // Break out values
-        R1 = T1.topLeftCorner<3,3>();
-        R2 = T2.topLeftCorner<3,3>();
-        d1 = T1.topRightCorner<3,1>();
-        d2 = T2.topRightCorner<3,1>();
-        
-        // Orientation error
-        Re = R1*R2.transpose();
-        
-        // Assign linear error
-        e.head<3>() = d1 - d2;
-        
-        // Extract diagonal and trace
-        t = Re.trace();
-        
-        // Build l variable, and calculate norm
-        eps <<	Re(2,1)-Re(1,2),
-                Re(0,2)-Re(2,0),
-                Re(1,0)-Re(0,1);
-        eps_norm = eps.norm();
-
-        // Different behaviour if rotations are near pi or not.
-        if (t > -.99 || eps_norm > 1e-10){
-            // Matrix is normal or near zero (not near pi)
-            // If the eps_norm is small, then the first-order taylor
-            // expansion results in no error at all
-            if (eps_norm < 1e-3){
-                // atan2( eps_norm, t - 1 ) / eps_norm ~= 0.5 - (t-3)/12
-                // Should have zero machine precision error when eps_norm < 1e-3.
-                //
-                // w ~= theta/(2*sin(theta)) = acos((t-1)/2)/(2*sin(theta))
-                //
-                // taylor expansion of theta/(2*theta) ~= 1/2 + theta^2/12 (3rd
-                // order)
-                // taylor expansion of (acos(t-1)/2)^2 is (3-t) (2nd order).
-                //
-                // Subtituting:
-                // w ~= (1/2 + (3-t)/12) * eps = (0.75 - t/12)*eps.
-                e.tail<3>() = (0.75 - t/12) * eps;
-            }else{
-                // Just use normal formula
-                e.tail<3>() = (atan2(eps_norm, t - 1) / eps_norm) * eps;
-            }
-        }else{
-            // If we get here, the trace is either nearly -1, and the error is
-            // close to zero.
-            // This combination is only possible if R is nearly a rotation of pi
-            // radians about the x, y, or z axes.
-            //
-            // Since at this point, any rotation vector will do since we could
-            // rotate in any direction. However, we use the approximation below.
-            e.tail<3>() = 1.570796326794897 * (Re.diagonal().array() + 1);
-            
-        } // End of if statements handling near-singular poses
-    } // End of hgtDiff()
     
     /**
      * @brief Saturates the magnitude of the error vector before being
@@ -602,7 +556,6 @@ public:
      * @param[in] b A 6-vector
      * @param[out] x The solution vector, passed as reference (DOF-vector)
      */
-    template<int DOF=Dynamic>
     void lsolve(
         const Matrix<double,6,DOF>& A,
 		const Vector<double,6>& b,

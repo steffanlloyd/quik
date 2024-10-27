@@ -17,7 +17,7 @@ using namespace Eigen;
 
 // Define manipulator.
 // This is the DH parameters for the KUKA KR6 robot
-const Robot<6> R(
+auto R = std::make_shared<Robot<6>>(
 	// Given as DOFx4 table, in the following order: a_i, alpha_i, d_i, theta_i.
 	(Matrix<double, 6, 4>() <<
 	  1./40,	-M_PI/2, 	183./1000,	0,
@@ -45,7 +45,8 @@ const Robot<6> R(
 );
 
 // Define the IK options
-const IKSolver IKS(
+const IKSolver<6> IKS(
+    R, // The robot object (pointer)
     200, // max number of iterations
     ALGORITHM_QUIK, // algorithm (ALGORITHM_QUIK, ALGORITHM_NR or ALGORITHM_BFGS)
     1e-12, // Exit tolerance
@@ -65,21 +66,18 @@ int main()
 	
 	// Initilize variables
 	int N = 10; // Number of poses to generate
-	int DOF = R.dof;
-	Matrix<double,6,Dynamic>
-    	Q(DOF, N),	// True joint angles
-        Q0(DOF, N),	// Initial guess of joint angles
-        Q_star(DOF, N);	// Solver's solution
-	Matrix<double,6,Dynamic> e_star(6,N);	// Error at solver pose
-	Vector<int,Dynamic>
-        iter(N),	// Store number of iterations of algorithm
-		breakReason(N);	// Store break out reason
-	Matrix4d
-        T,		// True forward kinematics transform
-		T_star;	// Forward kinematics at solver solution
+	int DOF = R->dof;
+	Matrix<double,6,Dynamic>    Q(DOF, N),	    // True joint angles
+                                Q0(DOF, N),	    // Initial guess of joint angles
+                                Q_star(DOF, N);	// Solver's solution
+	Matrix<double,6,Dynamic>    e_star(6,N);	// Error at solver pose
+    std::vector<int>            iter(N);	    // Store number of iterations of algorithm
+	std::vector<BREAKREASON_t>  breakReason(N);	// Store break out reason
+	Matrix4d                    T,		        // True forward kinematics transform
+		                        T_star;	        // Forward kinematics at solver solution
 	
-	Matrix<double,Dynamic,4> Tn(N*4,4); 	// 4N * 4 matrix of vertically stacked transforms to be solved.
-							// This is just a convenient way of sending in an array of transforms.
+	Matrix<double,Dynamic,4>    Tn(N*4,4); 	    // 4N * 4 matrix of vertically stacked transforms to be solved.
+							                    // This is just a convenient way of sending in an array of transforms.
 	
 	// Generate some random joint configurations for the robot
 	Q.setRandom(DOF, N);
@@ -90,7 +88,7 @@ int main()
 	// Do forward kinematics of each Q sample and store in the "tall" matrix
 	// of transforms, Tn
 	for (int i = 0; i < N; i++){
-		R.FKn( Q.col(i), T );
+		R->FKn( Q.col(i), T );
 		Tn.middleRows<4>(i*4) = T;
 	}
 		
@@ -98,7 +96,7 @@ int main()
 	auto startTime = chrono::high_resolution_clock::now();
 
 	// Solve using the IK function, store results in Q_star, e_star, iter and breakreason
-	IKS.IK<6>(R, Tn, Q0, Q_star, e_star, iter, breakReason);
+	IKS.IK(Tn, Q0, Q_star, e_star, iter, breakReason);
 
 	// Get the time after calling the IK function
     chrono::duration<double, std::micro> elapsed = chrono::high_resolution_clock::now() - startTime;
@@ -111,8 +109,12 @@ int main()
 	cout << "The final joint angles are: " << endl;
 	cout << Q_star << endl << endl;
 	cout << "Final normed error is: " << endl << e_star.array().square().colwise().sum().sqrt() << endl << endl;
-	cout << "Break reason is: " << endl  << breakReason.transpose() << endl << endl;
-	cout << "Number of iterations: " << endl  << iter.transpose() << endl << endl;
+	cout << "Break reason is: " << endl;
+    for (const auto& reason : breakReason) cout << reason << ' ';
+    cout << endl;
+	cout << "Number of iterations: " << endl;
+    for (const auto& iter_i : iter) cout << iter_i << ' ';
+    cout << endl;
 	cout << "Time elapsed for IK function: " << elapsed.count() << " us, " << elapsed.count()/N << " us per sample." << endl;
 	cout << "Program finished!" << endl;
 	

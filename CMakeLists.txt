@@ -38,7 +38,7 @@ ament_target_dependencies(ik_service_node
   geometry_msgs
   std_msgs)
 
-add_dependencies(ik_service_node ${PROJECT_NAME}__rosidl_typesupport_cpp)
+# add_dependencies(ik_service_node ${PROJECT_NAME}__rosidl_typesupport_cpp)
 ament_export_dependencies(rosidl_default_runtime)
 
 

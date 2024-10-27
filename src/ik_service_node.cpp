@@ -71,6 +71,7 @@ public:
 
         // Build IKSolver
         this->IKS = std::make_unique<IKSolver>(
+            this->R,
             this->get_parameter("max_iterations").as_int(),
             this->getAlgorithm_(this->get_parameter("algorithm").as_string()),
             this->get_parameter("exit_tolerance").as_double(),
@@ -131,7 +132,7 @@ private:
         int breakReason;
 
         // Use the IK function
-        this->IKS->IK( this->R, quat, d, Q0, Q_star, e_star, iter, breakReason);
+        this->IKS->IK( *this->R, quat, d, Q0, Q_star, e_star, iter, breakReason);
 
         // Convert output values back to response
         for (int i = 0; i < Q_star.size(); ++i) response->q_star.data.push_back(Q_star[i]);

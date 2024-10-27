@@ -103,7 +103,7 @@ public:
 		Matrix4d _Ttool = Matrix4d::Identity(4,4))
 		: DH(_DH), linkTypes(_linkTypes), Qsign(_Qsign), Tbase(_Tbase), Ttool(_Ttool)
 	{
-		dof = (int) DH.rows();	
+		this->dof = (int) this->DH.rows();	
 	}
 	
 	/**
@@ -111,12 +111,12 @@ public:
 	 */
 	void print() const
 	{
-		cout << "R.DH: " << endl << DH << endl;
-		cout << "R.Tbase: " << endl << Tbase << endl;
-		cout << "R.Ttool: " << endl << Ttool << endl;
-		cout << "R.linkTypes: " << linkTypes.transpose() << endl;
-		cout << "R.Qsign: " << Qsign.transpose() << endl;
-		cout << "R.dof: " << dof << endl;
+		cout << "R.DH: " << endl << this->DH << endl;
+		cout << "R.Tbase: " << endl << this->Tbase << endl;
+		cout << "R.Ttool: " << endl << this->Ttool << endl;
+		cout << "R.linkTypes: " << this->linkTypes.transpose() << endl;
+		cout << "R.Qsign: " << this->Qsign.transpose() << endl;
+		cout << "R.dof: " << this->dof << endl;
 	}
     
 	/**
@@ -138,12 +138,12 @@ public:
 		double stk, ctk, sak, cak, ak, dk;
 			
 		// Iterate over joints
-		for (int k=0; k<dof; k++){
+		for (int k=0; k<this->dof; k++){
 			
 			// Get DH variables for row
-			DH_k = DH.row(k);
-			if (linkTypes(k)) DH_k(2) += Q(k) * Qsign(k);
-			else DH_k(3) += Q(k) * Qsign(k);
+			DH_k = this->DH.row(k);
+			if (this->linkTypes(k)) DH_k(2) += Q(k) * this->Qsign(k);
+			else DH_k(3) += Q(k) * this->Qsign(k);
 			
 			// break out sin and cos
 			stk = sin(DH_k(3));
@@ -161,7 +161,7 @@ public:
 			
 			// Collect transforms
 			if (k==0){
-				T.template middleRows<4>(0) = Tbase * Ak;
+				T.template middleRows<4>(0) = this->Tbase * Ak;
 			}else{
 				T.template middleRows<4>(4*k) = T.template middleRows<4>(4*(k-1)) * Ak;
 			}
@@ -169,7 +169,7 @@ public:
 		} // End of joint for loop
 		
 		// Apply tool transform
-		T.template bottomRows<4>() = ((T.template middleRows<4>(4*(dof-1))) * Ttool).eval();
+		T.template bottomRows<4>() = ((T.template middleRows<4>(4*(this->dof-1))) * this->Ttool).eval();
 		
 	} // End of FK function
 	
@@ -184,8 +184,8 @@ public:
 	void FKn(const Vector<double,DOF> &Q, Matrix4d& Tn) const
 	{
 		constexpr int DOF4 = (DOF>0) ? (DOF+1)*4 : -1;
-		Matrix<double,DOF4,4> Ti((dof+1)*4,4);
-		FK( Q, Ti );
+		Matrix<double,DOF4,4> Ti((this->dof+1)*4,4);
+		this->FK( Q, Ti );
 		Tn = Ti.template bottomRows<4>();
 	}
 
@@ -209,11 +209,11 @@ public:
 		Vector3d z_im1, o_im1, o_n;
 		
 		// Get position of end effector
-		o_n = T.template block<3,1>( 4*(dof-1+int(includeTool)), 3);
-		// o_n = T.template block<3,1>( 4*(dof-1), 3);
+		o_n = T.template block<3,1>( 4*(this->dof-1+int(includeTool)), 3);
+		// o_n = T.template block<3,1>( 4*(this->dof-1), 3);
 
 		// Loop through joints
-		for (int i = 0; i < dof; i++){
+		for (int i = 0; i < this->dof; i++){
 			
 			// Get z_{i-1}, o_{i-1}
 			// z_{i-1} is the unit vector along the z-axis of the previous joint
@@ -222,13 +222,13 @@ public:
 				z_im1 = T.template block<3,1>(4*(i-1), 2);
 				o_im1 = T.template block<3,1>(4*(i-1), 3);
 			}else{
-				z_im1 = Tbase.block<3,1>(0,2);
-				o_im1 = Tbase.block<3,1>(0,3);
+				z_im1 = this->Tbase.block<3,1>(0,2);
+				o_im1 = this->Tbase.block<3,1>(0,3);
 			}
 			
 			// Assign the appropriate blocks of the Jacobian
 			// These formulas are from Spong.
-			if (linkTypes(i)){
+			if (this->linkTypes(i)){
 				// Prismatic joint
 				J.template block<3,1>(0, i) = z_im1;
 				J.template block<3,1>(3, i).fill(0);
@@ -265,11 +265,11 @@ public:
 		// So it is just a waste of time to fill it with zeros.
 		// A.fill(0); 
 		
-		if (!linkTypes.any()){
+		if (!this->linkTypes.any()){
 			// Special code for revolute joint robots only (most common, can
 			// skip branched coding which is slow)
 			
-			for (int k = 0; k < dof; k++){
+			for (int k = 0; k < this->dof; k++){
 				// First, iterate over off-diagonal terms
 				jvk = J.template block<3,1>(0,k);
 				jwk = J.template block<3,1>(3,k);
@@ -303,14 +303,14 @@ public:
 		}else{
 			// General case
 			
-			for (int k = 0; k < dof; k++){
+			for (int k = 0; k < this->dof; k++){
 				// First, iterate over off-diagonal terms
 				jvk = J.template block<3,1>(0,k);
 				jwk = J.template block<3,1>(3,k);
 				
 				for (int i = 0; i < k; i++){
-					if (! linkTypes(i)){ // link i is revolute
-						if (! linkTypes(k)){	// link k is revolute
+					if (! this->linkTypes(i)){ // link i is revolute
+						if (! this->linkTypes(k)){	// link k is revolute
 							// A(4:6, k) += jwi x jwk * dQi
 							A.template block<3,1>(3, k) += (J.template block<3,1>(3, i)).cross( jwk ) * dQ(i);
 						}
@@ -321,7 +321,7 @@ public:
 						A.template block<3,1>(0, i) += cp * dQ(k); // Symmetry
 					}
 					
-					if (! linkTypes(k)){
+					if (! this->linkTypes(k)){
 						// For diagonal entries, can skip the omega term since jwk x jwk = 0
 						// A(4:6, k) += jwi x jwk * dQi = 0
 						//

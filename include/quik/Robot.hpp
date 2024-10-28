@@ -49,6 +49,7 @@
 #pragma once
 
 #include "Eigen/Dense"
+#include <cassert>
 
 using namespace Eigen;
 using namespace std;
@@ -103,7 +104,12 @@ public:
 		Matrix4d _Ttool = Matrix4d::Identity(4,4))
 		: DH(_DH), linkTypes(_linkTypes), Qsign(_Qsign), Tbase(_Tbase), Ttool(_Ttool)
 	{
-		this->dof = (int) this->DH.rows();	
+		this->dof = (int) this->DH.rows();
+        assert(this->DH.cols() == 4 && "DH must be a DOFx4 matrix");  
+		assert(this->linkTypes.size() == this->dof && "linkTypes must be the same size as the DH matrix has rows.");
+		assert(this->Qsign.size() == this->dof && "Qsign must be the same size as the DH matrix has rows.");
+		assert(Geometry::ishgt(this->Ttool) && "Ttool must be a proper homogeneous transformation matrix");
+		assert(Geometry::ishgt(this->Tbase) && "Tbase must be a proper homogeneous transformation matrix");
 	}
 	
 	/**
@@ -114,9 +120,14 @@ public:
 		cout << "R.DH: " << endl << this->DH << endl;
 		cout << "R.Tbase: " << endl << this->Tbase << endl;
 		cout << "R.Ttool: " << endl << this->Ttool << endl;
-		cout << "R.linkTypes: " << this->linkTypes.transpose() << endl;
+		cout << "R.linkTypes: ";
+		for(int i = 0; i < this->linkTypes.size(); i++){
+			if(this->linkTypes(i)) cout << "PRISMATIC ";
+			else cout << "REVOLUTE ";
+		}
+		cout << endl;
 		cout << "R.Qsign: " << this->Qsign.transpose() << endl;
-		cout << "R.dof: " << this->dof << endl;
+		cout << "R.dof: " << this->dof << endl << endl << endl;
 	}
     
 	/**

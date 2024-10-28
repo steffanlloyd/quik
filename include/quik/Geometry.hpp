@@ -194,4 +194,36 @@ static void quatpos2hgt( const Matrix<double,4,Dynamic>& quat, const Matrix<doub
     }
 }
 
+/**
+ * @brief Checks if a matrix is a homogeneous transformation matrix
+ * 
+ * @param T The matrix
+ * @return bool
+ */
+static bool isRotationMatrix(const Matrix3d &R) {
+
+    // Check if is orthogonal (R*R_transpose = I)
+    if (! (R * R.transpose()).isApprox(Matrix3d::Identity())) return false;
+
+    // Check if rotation part has determinant 1 (right-hand rule system)
+    if (std::abs(R.determinant() - 1.0) > 1e-6) return false;
+
+    // Passed all checks, return true
+    return true;
+}
+
+/**
+ * @brief Checks if a matrix is a homogeneous transformation matrix
+ * 
+ * @param T The matrix
+ * @return bool
+ */
+static bool ishgt(const Matrix4d &T) {
+    // Check if last row is [0, 0, 0, 1]
+    if (!T.row(3).transpose().isApprox(Vector4d(0, 0, 0, 1))) return false;
+
+    // Check that rotation part is rotation matrix
+    return Geometry::isRotationMatrix(T.block<3,3>(0,0));
+}
+
 } // End of namespace GeometryHelpers

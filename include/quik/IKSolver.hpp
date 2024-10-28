@@ -6,38 +6,38 @@
 //
 // The key parameters:
 //
-//       * iterMax [int]: Maximum number of iterations of the
+//       * max_iterations [int]: Maximum number of iterations of the
 //           algorithm. Default: 100
 //       * algorithm [ALGORITHM_t]: The algorithm to use
 //           ALGORITHM_QUIK - QuIK
 //           ALGORITHM_NR - Newton-Raphson or Levenberg-Marquardt
 //           ALGORITHM_BFGS - BFGS
 //           Default: ALGORITHM_QUIK.
-//       * exitTol [double]: The exit tolerance on the norm of the
+//       * exit_tolerance [double]: The exit tolerance on the norm of the
 //           error. Default: 1e-12.
-//       * minStepSize [double]: The minimum joint angle step size
+//       * minimum_step_size [double]: The minimum joint angle step size
 //           (normed) before the solver exits. Default: 1e-14.
-//       * relImprovementTol [double]: The minimum relative
+//       * relative_improvement_tolerance [double]: The minimum relative
 //           iteration-to-iteration improvement. If this threshold isn't
 //           met, a counter is incremented. If the threshold isn't met
-//           [maxGradFails] times in a row, then the algorithm exits.
+//           [max_consecutive_grad_fails] times in a row, then the algorithm exits.
 //           For example, 0.05 represents a minimum of 5// relative
 //           improvement. Default: 0.05.
-//       * maxGradFails [int]: The maximum number of relative
+//       * max_consecutive_grad_fails [int]: The maximum number of relative
 //           improvement fails before the algorithm exits. Default:
 //           20.
-//       * lambda2 [double]: The square of the damping factor, lambda.
+//       * lambda_squared [double]: The square of the damping factor, lambda.
 //           Only applies to the NR and QuIK methods. If given, these
 //           methods become the DNR (also known as levenberg-marquardt)
 //           or the DQuIK algorithm. Ignored for BFGS algorithm.
 //           Default: 0.
-//       * maxLinearErrorStep [double]: An upper limit of the error step
+//       * max_linear_step_size [double]: An upper limit of the error step
 //           in a single step. Ignored for BFGS algorithm. Default: 0.3.
-//       * maxAngularErrorStep [double]: An upper limit of the error step
+//       * max_angular_step_size [double]: An upper limit of the error step
 //           in a single step. Ignored for BFGS algorithm. Default: 1.
-//       * armijoRuleSigma [double]: The sigma value used in armijo's
+//       * armijo_sigma [double]: The sigma value used in armijo's
 //           rule, for line search in the BFGS method. Default: 1e-5
-//       * armijoRuleBeta [double]: The beta value used in armijo's
+//       * armijo_beta [double]: The beta value used in armijo's
 //           rule, for line search in the BFGS method. Default: 0.5
 //
 //  Created by Steffan Lloyd on 2024-10-26.
@@ -77,8 +77,8 @@ public:
     // @brief Robot R: The robot object that is being solved.
     std::shared_ptr<Robot<DOF>> R;
     
-    // @brief iterMax [int]: Maximum number of iterations of the algorithm. Default: 100
-	int iterMax;
+    // @brief max_iterations [int]: Maximum number of iterations of the algorithm. Default: 100
+	int max_iterations;
     
     // @brief algorithm [ALGORITHM_t]: The algorithm to use
     //     - ALGORITHM_QUIK - QuIK
@@ -89,77 +89,77 @@ public:
 
     // @brief The exit tolerance on the norm of the
     // error. Default: 1e-12.
-	double exitTol;
+	double exit_tolerance;
 
-    // minStepSize [double]: The minimum joint angle step size
+    // minimum_step_size [double]: The minimum joint angle step size
     // (normed) before the solver exits. Default: 1e-14.
-	double minStepSize;
+	double minimum_step_size;
 
-    // @brief relImprovementTol [double]: The minimum relative
+    // @brief relative_improvement_tolerance [double]: The minimum relative
     // iteration-to-iteration improvement. If this threshold isn't
     // met, a counter is incremented. If the threshold isn't met
-    // [maxGradFails] times in a row, then the algorithm exits.
+    // [max_consecutive_grad_fails] times in a row, then the algorithm exits.
     // For example, 0.05 represents a minimum of 5 relative
     // improvement. Default: 0.05.
-	double relImprovementTol;
+	double relative_improvement_tolerance;
 
-    // @brief maxGradFails [int]: The maximum number of relative
+    // @brief max_consecutive_grad_fails [int]: The maximum number of relative
     // improvement fails before the algorithm exits. Default: 20.
-	int maxGradFails;
-	int maxGradFailsTotal;
+	int max_consecutive_grad_fails;
+	int max_gradient_fails;
 
     // @brief The square of the damping factor, lambda.
     // Only applies to the NR and QuIK methods. If given, these
     // methods become the DNR (also known as levenberg-marquardt)
     // or the DQuIK algorithm. Ignored for BFGS algorithm.
     // Default: 0.
-	double lambda2;
+	double lambda_squared;
 
-    // @brief maxLinearErrorStep [double]: An upper limit of the error step
+    // @brief max_linear_step_size [double]: An upper limit of the error step
     // in a single step. Ignored for BFGS algorithm. Default: 0.3.
-	double maxLinearErrorStep;
+	double max_linear_step_size;
 
-    // @brief maxAngularErrorStep [double]: An upper limit of the error step
+    // @brief max_angular_step_size [double]: An upper limit of the error step
     // in a single step. Ignored for BFGS algorithm. Default: 1.
-	double maxAngularErrorStep;
+	double max_angular_step_size;
 
-    // @brief armijoRuleSigma [double]: The sigma value used in armijo's
+    // @brief armijo_sigma [double]: The sigma value used in armijo's
     // rule, for line search in the BFGS method. Default: 1e-5
-	double armijoRuleSigma;
+	double armijo_sigma;
 
 
-    // @brief armijoRuleBeta [double]: The beta value used in armijo's
+    // @brief armijo_beta [double]: The beta value used in armijo's
     // rule, for line search in the BFGS method. Default: 0.5
-	double armijoRuleBeta;
+	double armijo_beta;
 
     // Constructor
 	IKSolver(
         std::shared_ptr<Robot<DOF>> _R,
-        int _iterMax = 100,
+        int _max_iterations = 100,
         ALGORITHM_t _algorithm = ALGORITHM_QUIK,
-        double _exitTol = 1e-12,
-        double _minStepSize = 1e-14,
-        double _relImprovementTol = 0.05,
-        int _maxGradFails = 5,
-        int _maxGradFailsTotal = 20,
-        double _lambda2 = 0,
-        double _maxLinearErrorStep = .34,
-        double _maxAngularErrorStep = 1,
-        double _armijoRuleSigma = 1e-5,
-        double _armijoRuleBeta = 0.5 )
+        double _exit_tolerance = 1e-12,
+        double _minimum_step_size = 1e-14,
+        double _relative_improvement_tolerance = 0.05,
+        int _max_consecutive_grad_fails = 5,
+        int _max_gradient_fails = 20,
+        double _lambda_squared = 0,
+        double _max_linear_step_size = .34,
+        double _max_angular_step_size = 1,
+        double _armijo_sigma = 1e-5,
+        double _armijo_beta = 0.5 )
         :   R(_R),
-            iterMax(_iterMax),
+            max_iterations(_max_iterations),
             algorithm(_algorithm),
-            exitTol(_exitTol),
-            minStepSize(_minStepSize),
-            relImprovementTol(_relImprovementTol),
-            maxGradFails(_maxGradFails),
-            maxGradFailsTotal(_maxGradFailsTotal),
-            lambda2(_lambda2),
-            maxLinearErrorStep(_maxLinearErrorStep),
-            maxAngularErrorStep(_maxAngularErrorStep),
-            armijoRuleSigma(_armijoRuleSigma),
-            armijoRuleBeta(_armijoRuleBeta)
+            exit_tolerance(_exit_tolerance),
+            minimum_step_size(_minimum_step_size),
+            relative_improvement_tolerance(_relative_improvement_tolerance),
+            max_consecutive_grad_fails(_max_consecutive_grad_fails),
+            max_gradient_fails(_max_gradient_fails),
+            lambda_squared(_lambda_squared),
+            max_linear_step_size(_max_linear_step_size),
+            max_angular_step_size(_max_angular_step_size),
+            armijo_sigma(_armijo_sigma),
+            armijo_beta(_armijo_beta)
     {}
 
     /**
@@ -211,11 +211,11 @@ public:
         // Preassign some values
         e.fill(0);
         dQ.fill(0);
-        iter = this->iterMax;
+        iter = this->max_iterations;
         breakReason = BREAKREASON_MAX_ITER; // Initialize to this, it will be overwritten if it doesn't reach max iter
         
         // Start IK iterations
-        for (int i = 0; i < this->iterMax; i++){
+        for (int i = 0; i < this->max_iterations; i++){
             
             // Get error, forward kinematics and jacobian
             // Only do this for Newton and QuIK, or on first iteration
@@ -234,26 +234,26 @@ public:
             e_norm = e.norm();
 
             // Break, if exit tolerance has been reached
-            if (e_norm < this->exitTol){
+            if (e_norm < this->exit_tolerance){
                 breakReason = BREAKREASON_TOLERANCE; // Tolerance reached
                 iter = i;
                 break;
             }
             
             // Check relative improvement in error
-            // We break if the relative improvement fails this->maxGradFails times in a row, or if
-            // it fails this->maxGradFailsTotal total
+            // We break if the relative improvement fails this->max_consecutive_grad_fails times in a row, or if
+            // it fails this->max_gradient_fails total
             error_relImprovement = (e_prev_norm - e_norm) / e_prev_norm;
-            if (error_relImprovement < this->relImprovementTol){
+            if (error_relImprovement < this->relative_improvement_tolerance){
                 // If relative improvement is below threshold, increment counters
                 grad_fail_counter++;
                 grad_fail_counter_total++;
-                if (grad_fail_counter > this->maxGradFails) {
+                if (grad_fail_counter > this->max_consecutive_grad_fails) {
                     breakReason = BREAKREASON_GRAD_FAILS; // Grad consecutive fails reached
                     iter = i;
                     break;
                 }
-                if (grad_fail_counter_total > this->maxGradFailsTotal) {
+                if (grad_fail_counter_total > this->max_gradient_fails) {
                     breakReason = BREAKREASON_GRAD_FAILS; // Grad fails reached
                     iter = i;
                     break;
@@ -324,12 +324,12 @@ public:
                     cost_ip1 = 0.5*e.array().square().sum();
                     
                     // Do line search
-                    while ((cost_i - cost_ip1) < -this->armijoRuleSigma * grad_i.transpose()*(gamma*s0)){
+                    while ((cost_i - cost_ip1) < -this->armijo_sigma * grad_i.transpose()*(gamma*s0)){
                         // Reduce gamma
-                        gamma = this->armijoRuleBeta * gamma;
+                        gamma = this->armijo_beta * gamma;
                         
                         // Break if step size is too small (prevents infinite loops too)
-                        if (gamma < this->minStepSize) break;
+                        if (gamma < this->minimum_step_size) break;
                         
                         // Recalculate cost
                         this->R->FK( Q + gamma*s0, T );
@@ -338,7 +338,7 @@ public:
                     }
                     
                     // Break out if step size is too small
-                    if (gamma < this->minStepSize){
+                    if (gamma < this->minimum_step_size){
                         breakReason = BREAKREASON_MIN_STEP; // reached minimum step size
                         iter = i;
                         break;
@@ -379,7 +379,7 @@ public:
             Q += dQ;
             
             // Check grad tolerance, break if necessary
-            if (dQ.array().square().sum() < this->minStepSize * this->minStepSize){
+            if (dQ.array().square().sum() < this->minimum_step_size * this->minimum_step_size){
                 breakReason = BREAKREASON_MIN_STEP; // minimum step sized reached
                 iter = i;
                 break;
@@ -542,11 +542,11 @@ public:
 
         // If either limit is greater than the square of the threshold, then rescale
         // the appropriate part of the error
-        if (ei_lin_norm2 > (this->maxLinearErrorStep * this->maxLinearErrorStep))
-            e.head<3>() *= this->maxLinearErrorStep / sqrt(ei_lin_norm2);
+        if (ei_lin_norm2 > (this->max_linear_step_size * this->max_linear_step_size))
+            e.head<3>() *= this->max_linear_step_size / sqrt(ei_lin_norm2);
         
-        if (ei_ang_norm2 > (this->maxAngularErrorStep * this->maxAngularErrorStep))
-            e.tail<3>() *= this->maxAngularErrorStep / sqrt(ei_ang_norm2);
+        if (ei_ang_norm2 > (this->max_angular_step_size * this->max_angular_step_size))
+            e.tail<3>() *= this->max_angular_step_size / sqrt(ei_ang_norm2);
     } // End of clampMag()
 
     /**
@@ -565,7 +565,7 @@ public:
         Matrix<double, 6, 6> Astar = A*A.transpose();
         
         // If a damping term is given, add it to the diagonals
-        if (this->lambda2 > 0) Astar.diagonal().array() += this->lambda2;
+        if (this->lambda_squared > 0) Astar.diagonal().array() += this->lambda_squared;
         
         // Do LLT decomposition, since matrix is guaranteed to be positive definite.
         LLT<Matrix<double,6,6>> Astar_llt(Astar);
@@ -580,16 +580,18 @@ public:
 	 */
 	void printOptions() const
     {
-        cout << "IKSolver.iterMax: " << this->iterMax << endl;
-        cout << "IKSolver.algorithm: " << this->algorithm << endl;
-        cout << "IKSolver.exitTol: " << this->exitTol << endl;
-        cout << "IKSolver.minStepSize: " << this->minStepSize << endl;
-        cout << "IKSolver.relImprovementTol: " << this->relImprovementTol << endl;
-        cout << "IKSolver.maxGradFails: " << this->maxGradFails << endl;
-        cout << "IKSolver.lambda2: " << this->lambda2 << endl;
-        cout << "IKSolver.maxLinearErrorStep: " << this->maxLinearErrorStep << endl;
-        cout << "IKSolver.maxAngularErrorStep: " << this->maxAngularErrorStep << endl;
-        cout << "IKSolver.armijoRuleSigma: " << this->armijoRuleSigma << endl;
-        cout << "IKSolver.armijoRuleBeta: " << this->armijoRuleBeta << endl;
+        cout << "IKSolver.max_iterations: " << this->max_iterations << endl;
+        if(this->algorithm == ALGORITHM_QUIK) cout << "IKSolver.algorithm: ALGORITHM_QUIK " << endl;
+        if(this->algorithm == ALGORITHM_NR) cout << "IKSolver.algorithm: ALGORITHM_NR " << endl;
+        if(this->algorithm == ALGORITHM_BFGS) cout << "IKSolver.algorithm: ALGORITHM_BFGS " << endl;
+        cout << "IKSolver.exit_tolerance: " << this->exit_tolerance << endl;
+        cout << "IKSolver.minimum_step_size: " << this->minimum_step_size << endl;
+        cout << "IKSolver.relative_improvement_tolerance: " << this->relative_improvement_tolerance << endl;
+        cout << "IKSolver.max_consecutive_grad_fails: " << this->max_consecutive_grad_fails << endl;
+        cout << "IKSolver.lambda_squared: " << this->lambda_squared << endl;
+        cout << "IKSolver.max_linear_step_size: " << this->max_linear_step_size << endl;
+        cout << "IKSolver.max_angular_step_size: " << this->max_angular_step_size << endl;
+        cout << "IKSolver.armijo_sigma: " << this->armijo_sigma << endl;
+        cout << "IKSolver.armijo_beta: " << this->armijo_beta << endl << endl << endl;
     }
 };

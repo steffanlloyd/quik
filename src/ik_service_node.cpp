@@ -2,6 +2,10 @@
 #include "quik/srv/ik_service.hpp"
 #include "quik/IKSolver.hpp"
 #include "quik/Robot.hpp"
+#include "quik/Geometry.hpp"
+
+using namespace Eigen;
+using namespace std;
 
 class IKServiceNode : public rclcpp::Node
 {
@@ -13,17 +17,15 @@ public:
         this->declare_parameter("max_iterations", 200);
         this->declare_parameter("algorithm", "ALGORITHM_QUIK");
         this->declare_parameter("exit_tolerance", 1e-12);
-        this->declare_parameter("minimum_step_tolerance", 1e-14);
-        this->declare_parameter("improvement_tolerance", 0.05);
-        this->declare_parameter("max_conseq_grad_fails", 10);
-        this->declare_parameter("max_grad_fails", 80);
-        this->declare_parameter("lambda2", 1e-10);
-        this->declare_parameter("max_linear_error_step", 0.34);
-        this->declare_parameter("max_angular_error_step", 1);
-        this->declare_parameter("sigma", 1e-5);
-        this->declare_parameter("beta", 0.5);
-
-        // Declare Tbase and Ttool with default values as 4x4 identity matrices
+        this->declare_parameter("minimum_step_size", 1e-14);
+        this->declare_parameter("relative_improvement_tolerance", 0.05);
+        this->declare_parameter("max_consecutive_grad_fails", 10);
+        this->declare_parameter("max_gradient_fails", 80);
+        this->declare_parameter("lambda_squared", 1e-10);
+        this->declare_parameter("max_linear_step_size", 0.34);
+        this->declare_parameter("max_angular_step_size", 1.0);
+        this->declare_parameter("armijo_sigma", 1e-5);
+        this->declare_parameter("armijo_beta", 0.5);
         this->declare_parameter("Tbase", std::vector<double>{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1});
         this->declare_parameter("Ttool", std::vector<double>{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1});
 
@@ -49,20 +51,22 @@ public:
 
         // Get Robot and IKSolver arguments, parse them into Eigen objects
         // DH Parameters
-        Eigen::Matrix<double, Eigen::Dynamic, 4> DH = Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 4>>(dh_param.data(), dh_param.size()/4, 4);
+        Matrix<double, Dynamic, 4> DH = Map<Matrix<double, Dynamic, 4>>(dh_param.data(), dh_param.size()/4, 4);
+
         // Link types
         std::vector<JOINTTYPE_t> link_types_data;
         for (const auto& lt : link_types_str) link_types_data.push_back(this->getJointType_(lt)); // Convert from string to JOINTTYPE_t
-        Eigen::Vector<JOINTTYPE_t,Dynamic> link_types = Eigen::Map<Eigen::Vector<JOINTTYPE_t,Dynamic>, Eigen::Unaligned>(link_types_data.data(), link_types_data.size());
+        Vector<JOINTTYPE_t,Dynamic> link_types = Map<Vector<JOINTTYPE_t,Dynamic>, Unaligned>(link_types_data.data(), link_types_data.size());
+
         // Q sign
-        std::vector<int> q_sign_int(q_sign_double.begin(), q_sign_double.end()); // Convert from double to int
-        Eigen::VectorXi q_sign = Eigen::Map<Eigen::VectorXi, Eigen::Unaligned>(q_sign_int.data(), q_sign_int.size());
+        VectorXd q_sign = Eigen::Map<VectorXd>(q_sign_double.data(), q_sign_double.size());
+
         // Tbase and Ttool
-        Eigen::Matrix4d Tbase = this->parseMatrix4d_(this->get_parameter("Tbase").as_double_array());
-        Eigen::Matrix4d Ttool = this->parseMatrix4d_(this->get_parameter("Ttool").as_double_array());
+        Matrix4d Tbase = this->parseMatrix4d_(this->get_parameter("Tbase").as_double_array());
+        Matrix4d Ttool = this->parseMatrix4d_(this->get_parameter("Ttool").as_double_array());
 
         // Build robot
-        this->R = std::make_unique<Robot<Dynamic>>(
+        this->R = std::make_shared<Robot<Dynamic>>(
             DH,
             link_types,
             q_sign,
@@ -70,20 +74,20 @@ public:
             Ttool);
 
         // Build IKSolver
-        this->IKS = std::make_unique<IKSolver>(
+        this->IKS = std::make_shared<IKSolver<Dynamic>>(
             this->R,
             this->get_parameter("max_iterations").as_int(),
             this->getAlgorithm_(this->get_parameter("algorithm").as_string()),
             this->get_parameter("exit_tolerance").as_double(),
-            this->get_parameter("minimum_step_tolerance").as_double(),
-            this->get_parameter("improvement_tolerance").as_double(),
-            this->get_parameter("max_conseq_grad_fails").as_int(),
-            this->get_parameter("max_grad_fails").as_int(),
-            this->get_parameter("lambda2").as_double(),
-            this->get_parameter("max_linear_error_step").as_double(),
-            this->get_parameter("max_angular_error_step").as_double(),
-            this->get_parameter("sigma").as_double(),
-            this->get_parameter("beta").as_double()
+            this->get_parameter("minimum_step_size").as_double(),
+            this->get_parameter("relative_improvement_tolerance").as_double(),
+            this->get_parameter("max_consecutive_grad_fails").as_int(),
+            this->get_parameter("max_gradient_fails").as_int(),
+            this->get_parameter("lambda_squared").as_double(),
+            this->get_parameter("max_linear_step_size").as_double(),
+            this->get_parameter("max_angular_step_size").as_double(),
+            this->get_parameter("armijo_sigma").as_double(),
+            this->get_parameter("armijo_beta").as_double()
         );
 
         // Declare service
@@ -100,8 +104,8 @@ public:
 
     }
 
-    std::unique_ptr<IKSolver> IKS;
-    std::unique_ptr<Robot<Dynamic>> R;
+    std::shared_ptr<IKSolver<Dynamic>> IKS;
+    std::shared_ptr<Robot<Dynamic>> R;
 
 private:
     void handle_service(
@@ -112,27 +116,27 @@ private:
         (void)request_header;
 
         // Parse request values
-        Eigen::Vector4d quat(
+        Vector4d quat(
             request->target_pose.orientation.w,
             request->target_pose.orientation.x,
             request->target_pose.orientation.y,
             request->target_pose.orientation.z);
-        Eigen::Vector3d d(
+        Vector3d d(
             request->target_pose.position.x,
             request->target_pose.position.y,
             request->target_pose.position.z);
-        Eigen::VectorXd Q0(request->q_0.data.size());
+        VectorXd Q0(request->q_0.data.size());
         for (size_t i = 0; i < request->q_0.data.size(); ++i) Q0(i) = request->q_0.data[i];
         int DOF=Q0.rows();
 
         // Init output variables
-        Eigen::VectorXd Q_star(DOF);
-        Eigen::Vector<double,6> e_star;
+        VectorXd Q_star(DOF);
+        Vector<double,6> e_star;
         int iter;
-        int breakReason;
+        BREAKREASON_t breakReason;
 
         // Use the IK function
-        this->IKS->IK( *this->R, quat, d, Q0, Q_star, e_star, iter, breakReason);
+        this->IKS->IK( quat, d, Q0, Q_star, e_star, iter, breakReason);
 
         // Convert output values back to response
         for (int i = 0; i < Q_star.size(); ++i) response->q_star.data.push_back(Q_star[i]);
@@ -175,12 +179,12 @@ private:
      * Eigen object
      * 
      * @param values 
-     * @return Eigen::Matrix4d 
+     * @return Matrix4d 
      */
-    Eigen::Matrix4d parseMatrix4d_(const std::vector<double>& values)
+    Matrix4d parseMatrix4d_(const std::vector<double>& values)
     {
         if (values.size() != 16) throw std::runtime_error("Invalid size for 4x4 matrix");
-        Eigen::Matrix4d matrix;
+        Matrix4d matrix;
         for (int i = 0; i < 4; ++i) {
             for (int j = 0; j < 4; ++j) {
                 matrix(i, j) = values[i * 4 + j];

@@ -40,8 +40,18 @@ auto R = std::make_shared<Robot<6>>(
 	(Vector<double,6>(6) << 1, 1, 1, 1, 1, 1).finished(),
 
 	// Fourth and fifth arguments are the base and tool transforms, respectively
-	Matrix4d::Identity(4,4),
-	Matrix4d::Identity(4,4)
+	(Matrix4d() <<
+	0.998449,  -0.0354367,   0.0429402,   -0.230335,
+  	0.0363142,    0.999144,   -0.019832,   0.0783694,
+ 	-0.0422007,   0.0213606,    0.998881,    0.790578,
+	0,           0 ,          0,           1).finished(),
+	(Matrix4d() <<
+	 0.81327,   -0.483592,    0.323622,   -0.232525,
+   -0.27816,    0.165402,    0.946187,     0.07953,
+  -0.511096,   -0.859524, 6.12323e-17,    0.343995,
+	0,           0 ,          0,           1).finished()
+	// Matrix4d::Identity(4,4),
+	// Matrix4d::Identity(4,4)
 );
 
 // Define the IK options
@@ -91,7 +101,7 @@ int main()
 		R->FKn( Q.col(i), T );
 		Tn.middleRows<4>(i*4) = T;
 	}
-		
+
 	// Start a timer, to get time
 	auto startTime = chrono::high_resolution_clock::now();
 

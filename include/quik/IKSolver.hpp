@@ -44,7 +44,6 @@
 
 #pragma once
 
-#include <cassert>
 #include <memory>
 #include "Eigen/Dense"
 #include "quik/Robot.hpp"
@@ -160,7 +159,20 @@ public:
             max_angular_step_size(_max_angular_step_size),
             armijo_sigma(_armijo_sigma),
             armijo_beta(_armijo_beta)
-    {}
+    {
+        // Input checking
+		if(this->max_iterations <= 0) throw std::runtime_error("max_iterations must be positive and nonzero!");
+		if(this->exit_tolerance <= 0) throw std::runtime_error("exit_tolerance must be a positive number!");
+		if(this->minimum_step_size < 0) throw std::runtime_error("minimum_step_size must be a positive number or zero!");
+		if(this->relative_improvement_tolerance <= 0) throw std::runtime_error("relative_improvement_tolerance must be a positive number!");
+		if(this->max_consecutive_grad_fails <= 0) throw std::runtime_error("max_consecutive_grad_fails must be a positive integer!");
+		if(this->max_gradient_fails <= 0) throw std::runtime_error("max_gradient_fails must be a positive integer!");
+		if(this->lambda_squared < 0) throw std::runtime_error("lambda_squared must be a positive number or zero!");
+		if(this->max_linear_step_size <= 0) throw std::runtime_error("max_linear_step_size must be a positive number!");
+		if(this->max_angular_step_size <= 0) throw std::runtime_error("max_angular_step_size must be a positive number!");
+		if(this->armijo_sigma <= 0) throw std::runtime_error("armijo_sigma must be a positive number!");
+		if(this->armijo_beta <= 0) throw std::runtime_error("armijo_beta must be a positive number!");
+    }
 
     /**
      * @brief IK A basic IK implementation of the QuIK, NR and BFGS algorithms. 
@@ -451,11 +463,11 @@ public:
         int N = (int) Q0.cols();
 
         // Ensure inputs are properly given
-        assert(Twt.rows() == 4*N && "Number of rows in Twt should be 4*N (where N is the number of poses to solve).");  
-        assert(Q_star.cols() == N && "Q_star must be a <DOFxN> matrix (where N is the number of poses to solve).");
-        assert(e_star.cols() == N && "e_star must be a <6xN> matrix (where N is the number of poses to solve).");
-        assert(iter.size() == N && "iter must be a <6xN> matrix (where N is the number of poses to solve).");
-        assert(breakReason.size() == N && "breakReason must be a <6xN> matrix (where N is the number of poses to solve).");       
+        if(Twt.rows() != 4*N) throw std::runtime_error("Number of rows in Twt should be 4*N (where N is the number of poses to solve).");
+        if(Q_star.cols() != N) throw std::runtime_error("Q_star must be a <DOFxN> matrix (where N is the number of poses to solve).");
+        if(e_star.cols() != N) throw std::runtime_error("e_star must be a <6xN> matrix (where N is the number of poses to solve).");
+        if(iter.size() != N) throw std::runtime_error("iter must be a <6xN> matrix (where N is the number of poses to solve).");
+        if(breakReason.size() != N) throw std::runtime_error("breakReason must be a <6xN> matrix (where N is the number of poses to solve).");
 
         // Start iterations over poses to solve
         for (int i = 0; i < N; i++){
@@ -580,18 +592,21 @@ public:
 	 */
 	void printOptions() const
     {
-        cout << "IKSolver.max_iterations: " << this->max_iterations << endl;
-        if(this->algorithm == ALGORITHM_QUIK) cout << "IKSolver.algorithm: ALGORITHM_QUIK " << endl;
-        if(this->algorithm == ALGORITHM_NR) cout << "IKSolver.algorithm: ALGORITHM_NR " << endl;
-        if(this->algorithm == ALGORITHM_BFGS) cout << "IKSolver.algorithm: ALGORITHM_BFGS " << endl;
-        cout << "IKSolver.exit_tolerance: " << this->exit_tolerance << endl;
-        cout << "IKSolver.minimum_step_size: " << this->minimum_step_size << endl;
-        cout << "IKSolver.relative_improvement_tolerance: " << this->relative_improvement_tolerance << endl;
-        cout << "IKSolver.max_consecutive_grad_fails: " << this->max_consecutive_grad_fails << endl;
-        cout << "IKSolver.lambda_squared: " << this->lambda_squared << endl;
-        cout << "IKSolver.max_linear_step_size: " << this->max_linear_step_size << endl;
-        cout << "IKSolver.max_angular_step_size: " << this->max_angular_step_size << endl;
-        cout << "IKSolver.armijo_sigma: " << this->armijo_sigma << endl;
-        cout << "IKSolver.armijo_beta: " << this->armijo_beta << endl << endl << endl;
+        cout << "\tIKSolver.max_iterations: " << this->max_iterations << endl;
+        if(this->algorithm == ALGORITHM_QUIK) cout << "\tIKSolver.algorithm: ALGORITHM_QUIK " << endl;
+        if(this->algorithm == ALGORITHM_NR) cout << "\tIKSolver.algorithm: ALGORITHM_NR " << endl;
+        if(this->algorithm == ALGORITHM_BFGS) cout << "\tIKSolver.algorithm: ALGORITHM_BFGS " << endl;
+        cout << "\tIKSolver.exit_tolerance: " << this->exit_tolerance << endl;
+        cout << "\tIKSolver.minimum_step_size: " << this->minimum_step_size << endl;
+        cout << "\tIKSolver.relative_improvement_tolerance: " << this->relative_improvement_tolerance << endl;
+        cout << "\tIKSolver.max_consecutive_grad_fails: " << this->max_consecutive_grad_fails << endl;
+        cout << "\tIKSolver.lambda_squared: " << this->lambda_squared << endl;
+        cout << "\tIKSolver.max_linear_step_size: " << this->max_linear_step_size << endl;
+        cout << "\tIKSolver.max_angular_step_size: " << this->max_angular_step_size << endl;
+        if (this->algorithm == ALGORITHM_BFGS){
+            cout << "\tIKSolver.armijo_sigma: " << this->armijo_sigma << endl;
+            cout << "\tIKSolver.armijo_beta: " << this->armijo_beta << endl;
+        }
+        cout << endl << endl;
     }
 };

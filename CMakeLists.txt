@@ -18,6 +18,8 @@ include_directories(${EIGEN3_INCLUDE_DIR})
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/IKService.srv"
+  "srv/FKService.srv"
+  "srv/JacobianService.srv"
   DEPENDENCIES geometry_msgs std_msgs
 )
 
@@ -30,22 +32,22 @@ install(DIRECTORY include/
 add_executable(example src/example.cpp)
 ament_target_dependencies(example Eigen3)
 
-add_executable(ik_service_node src/ik_service_node.cpp)
-ament_target_dependencies(ik_service_node
+add_executable(kinematics_service_node src/kinematics_service_node.cpp)
+ament_target_dependencies(kinematics_service_node
   rclcpp
   Eigen3
   rosidl_default_runtime
   geometry_msgs
   std_msgs)
 
-# add_dependencies(ik_service_node ${PROJECT_NAME}__rosidl_typesupport_cpp)
+# add_dependencies(kinematics_service_node ${PROJECT_NAME}__rosidl_typesupport_cpp)
 ament_export_dependencies(rosidl_default_runtime)
 
 
 # Install library and create export set
 install(TARGETS
   example
-  ik_service_node
+  kinematics_service_node
   DESTINATION lib/${PROJECT_NAME})
 
 install(TARGETS
@@ -62,7 +64,7 @@ ament_export_include_directories(include)
 rosidl_get_typesupport_target(cpp_typesupport_target
   ${PROJECT_NAME} rosidl_typesupport_cpp)
   
-target_link_libraries(ik_service_node "${cpp_typesupport_target}")
+target_link_libraries(kinematics_service_node "${cpp_typesupport_target}")
 
 
 # Export targets

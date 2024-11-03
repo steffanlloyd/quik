@@ -49,7 +49,7 @@
 #pragma once
 
 #include "Eigen/Dense"
-#include <cassert>
+#include "quik/Geometry.hpp"
 
 using namespace Eigen;
 using namespace std;
@@ -105,11 +105,11 @@ public:
 		: DH(_DH), linkTypes(_linkTypes), Qsign(_Qsign), Tbase(_Tbase), Ttool(_Ttool)
 	{
 		this->dof = (int) this->DH.rows();
-        assert(this->DH.cols() == 4 && "DH must be a DOFx4 matrix");  
-		assert(this->linkTypes.size() == this->dof && "linkTypes must be the same size as the DH matrix has rows.");
-		assert(this->Qsign.size() == this->dof && "Qsign must be the same size as the DH matrix has rows.");
-		assert(Geometry::ishgt(this->Ttool) && "Ttool must be a proper homogeneous transformation matrix");
-		assert(Geometry::ishgt(this->Tbase) && "Tbase must be a proper homogeneous transformation matrix");
+		if(this->DH.cols() != 4) throw std::runtime_error("DH must be a DOFx4 matrix");
+		if(this->linkTypes.size() != this->dof) throw std::runtime_error("linkTypes must be the same size as the DH matrix has rows.");
+		if(this->Qsign.size() != this->dof) throw std::runtime_error("Qsign must be the same size as the DH matrix has rows.");
+		if(!Geometry::ishgt(this->Ttool)) throw std::runtime_error("Ttool must be a proper homogeneous transformation matrix");
+		if(!Geometry::ishgt(this->Tbase)) throw std::runtime_error("Tbase must be a proper homogeneous transformation matrix");
 	}
 	
 	/**
@@ -192,29 +192,62 @@ public:
 	 * @param[in] Q The input joint angles
 	 * @param[out] T The tranformation matrices for the final link
 	 */
-	void FKn(const Vector<double,DOF> &Q, Matrix4d& Tn) const
+	void FKn(const Vector<double,DOF> &Q, Matrix4d& Tn, int frame=-1) const
 	{
 		constexpr int DOF4 = (DOF>0) ? (DOF+1)*4 : -1;
 		Matrix<double,DOF4,4> Ti((this->dof+1)*4,4);
 		this->FK( Q, Ti );
-		Tn = Ti.template bottomRows<4>();
+
+		// If frame is -1 (default), return tool frame
+		if(frame==-1) frame = this->dof+1;
+
+		// Validate input
+		if(frame < 1 || frame > this->dof+1) {
+			throw std::runtime_error("Requested frame must be -1 (for tool frame) or an integer between 1 and DOF+1");
+		}
+
+		Tn = Ti.template middleRows<4>((frame-1)*4);
 	}
 
+	/**
+	 * @brief Computes the geometric jacobian of the manipulator, based on joint angles.
+	 * 
+	 * If you already have computed the forward kinematics, this function is inneficient. Use the second
+	 * calling syntax below!
+	 * 
+	 * @param[in] Q The joint variables for the robot
+	 * @param[out] J The jacobian matrix
+	 * @param[in] includeTool  Whether or not to include the tool transform in the calculations
+	 * Default: true.
+	 */
+	void jacobian( const Vector<double, DOF>& Q, Matrix<double, 6, DOF>& J, bool includeTool = true) const
+	{
+		// Initialize the outputs
+        constexpr int DOF4 = DOF>0 ? (DOF+1)*4 : -1;
+        Matrix<double,DOF4,4> T((this->dof+1)*4, 4); // Holds the forward kinematics for each joint
+
+		// Update T with forward kinematics
+		this->FK( Q, T );
+		
+		// Get jacobian, store it in J
+		this->jacobian(T, J, includeTool);
+	}
 	
 	/**
 	 * @brief Computes the geometric jacobian of the manipulator, based on the stacked forward
 	 * kinematics transforms given by the FK function.
 	 * 
-	 * INPUTS:
-	 * @param T The forward transformation matrices for all the links of the robot
-	 * As computed with the FK function
-	 * @param includeTool Whether or not to include the tool transform in the calculations
-	 * Default: true.
+	 * If you've already computed the forward kinematics, this function is much more efficent
+	 * that the calling syntax based on joint angles, since it needs to just call the forward
+	 * kinematics first anyway.
 	 * 
-	 * OUTPUTS:
-	 * @param J The Matrix J, passed as reference, in which to store the results.
+	 * @param[in] T The forward transformation matrices for all the links of the robot
+	 * As computed with the FK function
+	 * @param[out] J The Matrix J, passed as reference, in which to store the results.
+	 * @param[in] includeTool Whether or not to include the tool transform in the calculations
+	 * Default: true.
 	 */
-	void jacobian( Matrix<double,(DOF>0?4*(DOF+1):-1),4>& T, Matrix<double,6,DOF>& J, bool includeTool = true) const
+	void jacobian( const Matrix<double,(DOF>0?4*(DOF+1):-1),4>& T, Matrix<double,6,DOF>& J, bool includeTool = true) const
 	{
 		// Initialize some variables
 		Vector3d z_im1, o_im1, o_n;
@@ -259,12 +292,9 @@ public:
 	 * through multiplication as they are computed. The result is added to A.
 	 * Note, A must be pre-initialized with 0's before calling this function!
 	 * 
-	 * INPUTS:
-	 * @param J The Jacobian J
-	 * @param dQ The delta joint variables vector
-	 * 
-	 * OUTPUTS:
-	 * @param A The resulting Hessian product, to store values into (will be modified).
+	 * @param[in] J The Jacobian J
+	 * @param[in] dQ The delta joint variables vector
+	 * @param[out] A The resulting Hessian product, to store values into (will be modified).
 	 */
 	void hessianProduct( const Matrix<double,6,DOF>& J, const Vector<double,DOF>& dQ, Matrix<double,6,DOF>& A) const
 	{

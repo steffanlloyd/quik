@@ -1,9 +1,11 @@
+# IKService.srv
 # Request
 geometry_msgs/Pose target_pose
-std_msgs/Float64MultiArray q_0 # Initial guesses of the joint angles
+float64[] q_0 # Initial guesses of the joint angles
 ---
 # Response
-std_msgs/Float64MultiArray q_star # The solved joint angles
-std_msgs/Float64MultiArray e_star # The pose errors at the final solution
-std_msgs/Int32 iter # The number of iterations the algorithm took
-std_msgs/Int32 break_reason # The reason the algorithm stopped
+float64[] q_star # The solved joint angles
+float64[6] e_star # The pose errors at the final solution
+int32 iter # The number of iterations the algorithm took
+int32 break_reason # The reason the algorithm stopped
+bool success # Whether or not the IK was successful

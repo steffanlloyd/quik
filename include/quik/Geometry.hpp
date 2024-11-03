@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cassert>
 #include <memory>
 #include "Eigen/Dense"
 
@@ -20,7 +19,7 @@ namespace Geometry{
  * @param[in] T2 The second transform
  * @param[out] e The error (passed as reference and transformed)
  */
-static void hgtDiff(const Matrix4d& T1, const Matrix4d& T2, Vector<double,6>& e)
+void hgtDiff(const Matrix4d& T1, const Matrix4d& T2, Vector<double,6>& e)
 {
     Matrix3d R1, R2, Re;
     Vector3d d1, d2, eps;
@@ -92,7 +91,7 @@ static void hgtDiff(const Matrix4d& T1, const Matrix4d& T2, Vector<double,6>& e)
  * @param[in] T The matrix to invert (passed as reference)
  * @return Matrix4d 
  */
-static Matrix4d hgtInv( const Matrix4d& T )
+Matrix4d hgtInv( const Matrix4d& T )
 {
     Matrix4d Tinv;
     Tinv.topLeftCorner<3,3>() = T.topLeftCorner<3,3>().transpose();
@@ -110,7 +109,7 @@ static Matrix4d hgtInv( const Matrix4d& T )
  * @param[out] quat The output quaterneon (x,y,z,w)
  * @param[out] d The output displacement vector (x,y,z)
  */
-static void hgt2quatpos( const Matrix4d& T, Vector4d& quat, Vector3d& d)
+void hgt2quatpos( const Matrix4d& T, Vector4d& quat, Vector3d& d)
 {
     // Extract the rotation matrix from the homogeneous transformation matrix
     Matrix3d R = T.block<3,3>(0,0);
@@ -132,13 +131,13 @@ static void hgt2quatpos( const Matrix4d& T, Vector4d& quat, Vector3d& d)
  * @param[out] quat Matrix<double,4,N> The output quaterneon (x,y,z,w)
  * @param[out] d Matrix<double,3,N> The output displacement vector (x,y,z)
  */
-static void hgt2quatpos( const Matrix<double,Dynamic,4>& T, Matrix<double,4,Dynamic>& quat, Matrix<double,3,Dynamic>& d)
+void hgt2quatpos( const Matrix<double,Dynamic,4>& T, Matrix<double,4,Dynamic>& quat, Matrix<double,3,Dynamic>& d)
 {
     // Get the number of transformations
     int N = T.rows() / 4;
-    assert(quat.cols() == N && "Number of columns in quat should be equal to the number of rows in T / 4.");  
-    assert(d.cols() == N && "Number of columns in d should be equal to the number of rows in T / 4.");  
 
+    if(quat.cols() != N) throw std::runtime_error("Number of columns in quat should be equal to the number of rows in T / 4.");
+    if(d.cols() != N) throw std::runtime_error("Number of columns in d should be equal to the number of rows in T / 4.");
 
     // Iterate over each transformation
     for(int i = 0; i < N; ++i) {
@@ -160,7 +159,7 @@ static void hgt2quatpos( const Matrix<double,Dynamic,4>& T, Matrix<double,4,Dyna
  * @param[in] d The input displacement vector (x,y,z)
  * @param[out] T Matrix4d T, the output homogeneous transformation matrix. 
  */
-static void quatpos2hgt( const Vector4d& quat, const Vector3d& d, Matrix4d& T)
+void quatpos2hgt( const Vector4d& quat, const Vector3d& d, Matrix4d& T)
 {
     // Convert quaternion to rotation matrix
     Quaterniond quaternion(quat(3), quat(0), quat(1), quat(2));
@@ -180,12 +179,12 @@ static void quatpos2hgt( const Vector4d& quat, const Vector3d& d, Matrix4d& T)
  * @param[in] d Matrix<double,3,N> The input displacement vector (x,y,z)
  * @param[out] T Matrix<double,4*N,4> T, the output homogeneous transformation matrix. 
  */
-static void quatpos2hgt( const Matrix<double,4,Dynamic>& quat, const Matrix<double,3,Dynamic>& d, Matrix<double,Dynamic,4>& T)
+void quatpos2hgt( const Matrix<double,4,Dynamic>& quat, const Matrix<double,3,Dynamic>& d, Matrix<double,Dynamic,4>& T)
 {
     int N = quat.cols();
 
-    assert(T.rows()/4 == N && "Number of columns in quat should be equal to the number of rows in T / 4.");  
-    assert(d.cols() == N && "Number of columns in d should be equal to the number of rows in T / 4.");  
+    if(T.rows()/4 != N) throw std::runtime_error("Number of columns in quat should be equal to the number of rows in T / 4.");
+    if(d.cols() != N) throw std::runtime_error("Number of columns in d should be equal to the number of rows in T / 4.");
 
     for(int i = 0; i < N; ++i) {
         Matrix4d T_i;
@@ -200,10 +199,10 @@ static void quatpos2hgt( const Matrix<double,4,Dynamic>& quat, const Matrix<doub
  * @param T The matrix
  * @return bool
  */
-static bool isRotationMatrix(const Matrix3d &R) {
+bool isRotationMatrix(const Matrix3d &R, double tolerance = 1e-6) {
 
     // Check if is orthogonal (R*R_transpose = I)
-    if (! (R * R.transpose()).isApprox(Matrix3d::Identity())) return false;
+    if (! (R * R.transpose()).isApprox(Matrix3d::Identity(), tolerance)) return false;
 
     // Check if rotation part has determinant 1 (right-hand rule system)
     if (std::abs(R.determinant() - 1.0) > 1e-6) return false;
@@ -218,9 +217,9 @@ static bool isRotationMatrix(const Matrix3d &R) {
  * @param T The matrix
  * @return bool
  */
-static bool ishgt(const Matrix4d &T) {
+bool ishgt(const Matrix4d &T, double tolerance = 1e-6) {
     // Check if last row is [0, 0, 0, 1]
-    if (!T.row(3).transpose().isApprox(Vector4d(0, 0, 0, 1))) return false;
+    if (!T.row(3).transpose().isApprox(Vector4d(0, 0, 0, 1), tolerance)) return false;
 
     // Check that rotation part is rotation matrix
     return Geometry::isRotationMatrix(T.block<3,3>(0,0));

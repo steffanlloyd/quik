@@ -54,6 +54,8 @@
 using namespace Eigen;
 using namespace std;
 
+namespace quik{
+
 enum JOINTTYPE_t : bool {
 	JOINT_REVOLUTE = false,
 	JOINT_PRISMATIC = true
@@ -72,7 +74,7 @@ public:
 
 	// @brief Vector<JOINTTYPE_t,DOF> linkTypes: A vector of link types. Specify JOINT_REVOLUTE
 	// or JOINT_PRISMATIC
-	Vector<JOINTTYPE_t,DOF> linkTypes;
+	Vector<quik::JOINTTYPE_t,DOF> linkTypes;
     
 	// @brief Vector<double,6> Qsign: A vector of link direction (-1 or 1). Allows you to
 	// change the sign of the joint variable.
@@ -98,7 +100,7 @@ public:
 	 */
 	Robot(
 		Array<double,DOF,4> _DH,
-		Vector<JOINTTYPE_t,DOF> _linkTypes,
+		Vector<quik::JOINTTYPE_t,DOF> _linkTypes,
 		Vector<double,DOF> _Qsign,
 		Matrix4d _Tbase = Matrix4d::Identity(4,4),
 		Matrix4d _Ttool = Matrix4d::Identity(4,4))
@@ -374,4 +376,6 @@ public:
 		} // end of branched if
 	} // end of hessianProduct()
 
-};
+}; // End of class definition quik::Robot
+
+} // End of namespace quik

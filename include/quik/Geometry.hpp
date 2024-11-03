@@ -5,6 +5,7 @@
 
 using namespace Eigen;
 
+namespace quik{
 namespace Geometry{
 
 /**
@@ -143,7 +144,7 @@ void hgt2quatpos( const Matrix<double,Dynamic,4>& T, Matrix<double,4,Dynamic>& q
     for(int i = 0; i < N; ++i) {
         // Init and compute results
         Vector3d d_i; Vector4d quat_i;
-        Geometry::hgt2quatpos( T.middleRows<4>(4*i), quat_i, d_i);
+        quik::Geometry::hgt2quatpos( T.middleRows<4>(4*i), quat_i, d_i);
 
         // Store the results
         quat.col(i) = quat_i;
@@ -188,7 +189,7 @@ void quatpos2hgt( const Matrix<double,4,Dynamic>& quat, const Matrix<double,3,Dy
 
     for(int i = 0; i < N; ++i) {
         Matrix4d T_i;
-        Geometry::quatpos2hgt( quat.col(i), d.col(i), T);
+        quik::Geometry::quatpos2hgt( quat.col(i), d.col(i), T);
         T.middleRows<4>(4*i) = T;
     }
 }
@@ -222,7 +223,8 @@ bool ishgt(const Matrix4d &T, double tolerance = 1e-6) {
     if (!T.row(3).transpose().isApprox(Vector4d(0, 0, 0, 1), tolerance)) return false;
 
     // Check that rotation part is rotation matrix
-    return Geometry::isRotationMatrix(T.block<3,3>(0,0));
+    return quik::Geometry::isRotationMatrix(T.block<3,3>(0,0));
 }
 
-} // End of namespace GeometryHelpers
+} // End of namespace Geometry
+} // End of namespace quik

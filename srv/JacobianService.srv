@@ -1,7 +1,6 @@
 # JacobianService.srv
 # Request
 float64[] q # joint_angles
-int32 frame -1 # the requested frame, if ommitted defaults to the tool frame
 ---
 # Response
 float64[] jacobian # Jacobian matrix

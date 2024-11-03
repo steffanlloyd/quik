@@ -52,6 +52,8 @@
 
 using namespace Eigen;
 
+namespace quik{
+
 /**
  * @brief List of break reasons (reasons why the algorithm stopped)
  * 
@@ -84,7 +86,7 @@ public:
     //     - ALGORITHM_NR - Newton-Raphson or Levenberg-Marquardt
     //     - ALGORITHM_BFGS - BFGS
     //     - Default: 0.
-	ALGORITHM_t algorithm;
+	quik::ALGORITHM_t algorithm;
 
     // @brief The exit tolerance on the norm of the
     // error. Default: 1e-12.
@@ -135,7 +137,7 @@ public:
 	IKSolver(
         std::shared_ptr<Robot<DOF>> _R,
         int _max_iterations = 100,
-        ALGORITHM_t _algorithm = ALGORITHM_QUIK,
+        quik::ALGORITHM_t _algorithm = quik::ALGORITHM_QUIK,
         double _exit_tolerance = 1e-12,
         double _minimum_step_size = 1e-14,
         double _relative_improvement_tolerance = 0.05,
@@ -192,7 +194,7 @@ public:
 		Vector<double,DOF>& Q_star,
 		Vector<double,6>& e_star,
 		int& iter,
-		BREAKREASON_t& breakReason) const
+		quik::BREAKREASON_t& breakReason) const
     {
         // Initialize variables
         Vector<double,DOF>  Q = Q0;     // Holds the current solution guess
@@ -224,14 +226,14 @@ public:
         e.fill(0);
         dQ.fill(0);
         iter = this->max_iterations;
-        breakReason = BREAKREASON_MAX_ITER; // Initialize to this, it will be overwritten if it doesn't reach max iter
+        breakReason = quik::BREAKREASON_MAX_ITER; // Initialize to this, it will be overwritten if it doesn't reach max iter
         
         // Start IK iterations
         for (int i = 0; i < this->max_iterations; i++){
             
             // Get error, forward kinematics and jacobian
             // Only do this for Newton and QuIK, or on first iteration
-            if (this->algorithm != ALGORITHM_BFGS || i == 0){
+            if (this->algorithm != quik::ALGORITHM_BFGS || i == 0){
                 // Update T with forward kinematics
                 this->R->FK( Q, T );
                 
@@ -247,7 +249,7 @@ public:
 
             // Break, if exit tolerance has been reached
             if (e_norm < this->exit_tolerance){
-                breakReason = BREAKREASON_TOLERANCE; // Tolerance reached
+                breakReason = quik::BREAKREASON_TOLERANCE; // Tolerance reached
                 iter = i;
                 break;
             }
@@ -261,12 +263,12 @@ public:
                 grad_fail_counter++;
                 grad_fail_counter_total++;
                 if (grad_fail_counter > this->max_consecutive_grad_fails) {
-                    breakReason = BREAKREASON_GRAD_FAILS; // Grad consecutive fails reached
+                    breakReason = quik::BREAKREASON_GRAD_FAILS; // Grad consecutive fails reached
                     iter = i;
                     break;
                 }
                 if (grad_fail_counter_total > this->max_gradient_fails) {
-                    breakReason = BREAKREASON_GRAD_FAILS; // Grad fails reached
+                    breakReason = quik::BREAKREASON_GRAD_FAILS; // Grad fails reached
                     iter = i;
                     break;
                 }
@@ -284,7 +286,7 @@ public:
             switch (this->algorithm){
                     
                     
-                case ALGORITHM_QUIK:
+                case quik::ALGORITHM_QUIK:
                     // Halley's method (QuIK Method)
                     
                     // First, store the newton step in dQ (note, it's negative)
@@ -307,7 +309,7 @@ public:
                     
                     
                     
-                case ALGORITHM_NR:
+                case quik::ALGORITHM_NR:
                     // Newton's method
                     this->lsolve( J, e, dQ);
                     dQ *= -1;
@@ -315,7 +317,7 @@ public:
                     
                     
                     
-                case ALGORITHM_BFGS:
+                case quik::ALGORITHM_BFGS:
                     // BFGS
                     // On first iteration, initialize some variables
                     if (i == 0){
@@ -351,7 +353,7 @@ public:
                     
                     // Break out if step size is too small
                     if (gamma < this->minimum_step_size){
-                        breakReason = BREAKREASON_MIN_STEP; // reached minimum step size
+                        breakReason = quik::BREAKREASON_MIN_STEP; // reached minimum step size
                         iter = i;
                         break;
                     }
@@ -392,7 +394,7 @@ public:
             
             // Check grad tolerance, break if necessary
             if (dQ.array().square().sum() < this->minimum_step_size * this->minimum_step_size){
-                breakReason = BREAKREASON_MIN_STEP; // minimum step sized reached
+                breakReason = quik::BREAKREASON_MIN_STEP; // minimum step sized reached
                 iter = i;
                 break;
             }
@@ -426,7 +428,7 @@ public:
 		Vector<double,DOF>& Q_star,
 		Vector<double,6>& e_star,
 		int& iter,
-		BREAKREASON_t& breakReason) const
+		quik::BREAKREASON_t& breakReason) const
     {
         // Initialize and compute Twt
         Matrix4d Twt;
@@ -457,7 +459,7 @@ public:
 		Matrix<double,DOF,Dynamic>& Q_star,
 		Matrix<double,6,Dynamic>& e_star,
 		std::vector<int>& iter,
-		std::vector<BREAKREASON_t>& breakReason) const
+		std::vector<quik::BREAKREASON_t>& breakReason) const
     {
         // Get size of problem
         int N = (int) Q0.cols();
@@ -475,7 +477,7 @@ public:
             Vector<double,DOF> Q_star_i;
             Vector<double,6> e_star_i;
             int iter_i;
-            BREAKREASON_t breakReason_i;
+            quik::BREAKREASON_t breakReason_i;
 
             this->IK(
                 Twt.middleRows<4>(4*i),
@@ -518,12 +520,12 @@ public:
 		Matrix<double,DOF,Dynamic>& Q_star,
 		Matrix<double,6,Dynamic>& e_star,
 		std::vector<int>& iter,
-		std::vector<BREAKREASON_t>& breakReason) const
+		std::vector<quik::BREAKREASON_t>& breakReason) const
     {
         // Convert to homogenous transform
         constexpr int DOF4 = DOF>0 ? (DOF+1)*4 : -1;
         Matrix<double,DOF4,4> Twt;
-        Geometry::quatpos2hgt(quat, d, Twt);
+        quik::Geometry::quatpos2hgt(quat, d, Twt);
 
         // Call the first version of IK
         this->IK(Twt, Q0, Q_star, e_star, iter, breakReason);
@@ -593,9 +595,9 @@ public:
 	void printOptions() const
     {
         cout << "\tIKSolver.max_iterations: " << this->max_iterations << endl;
-        if(this->algorithm == ALGORITHM_QUIK) cout << "\tIKSolver.algorithm: ALGORITHM_QUIK " << endl;
-        if(this->algorithm == ALGORITHM_NR) cout << "\tIKSolver.algorithm: ALGORITHM_NR " << endl;
-        if(this->algorithm == ALGORITHM_BFGS) cout << "\tIKSolver.algorithm: ALGORITHM_BFGS " << endl;
+        if(this->algorithm == quik::ALGORITHM_QUIK) cout << "\tIKSolver.algorithm: ALGORITHM_QUIK " << endl;
+        if(this->algorithm == quik::ALGORITHM_NR) cout << "\tIKSolver.algorithm: ALGORITHM_NR " << endl;
+        if(this->algorithm == quik::ALGORITHM_BFGS) cout << "\tIKSolver.algorithm: ALGORITHM_BFGS " << endl;
         cout << "\tIKSolver.exit_tolerance: " << this->exit_tolerance << endl;
         cout << "\tIKSolver.minimum_step_size: " << this->minimum_step_size << endl;
         cout << "\tIKSolver.relative_improvement_tolerance: " << this->relative_improvement_tolerance << endl;
@@ -603,10 +605,12 @@ public:
         cout << "\tIKSolver.lambda_squared: " << this->lambda_squared << endl;
         cout << "\tIKSolver.max_linear_step_size: " << this->max_linear_step_size << endl;
         cout << "\tIKSolver.max_angular_step_size: " << this->max_angular_step_size << endl;
-        if (this->algorithm == ALGORITHM_BFGS){
+        if (this->algorithm == quik::ALGORITHM_BFGS){
             cout << "\tIKSolver.armijo_sigma: " << this->armijo_sigma << endl;
             cout << "\tIKSolver.armijo_beta: " << this->armijo_beta << endl;
         }
         cout << endl << endl;
     }
-};
+}; // End of class definition quik::IKSolver
+
+} // End of namespace quik

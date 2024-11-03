@@ -17,7 +17,7 @@ using namespace Eigen;
 
 // Define manipulator.
 // This is the DH parameters for the KUKA KR6 robot
-auto R = std::make_shared<Robot<6>>(
+auto R = std::make_shared<quik::Robot<6>>(
 	// Given as DOFx4 table, in the following order: a_i, alpha_i, d_i, theta_i.
 	(Matrix<double, 6, 4>() <<
 	  1./40,	-M_PI/2, 	183./1000,	0,
@@ -30,8 +30,8 @@ auto R = std::make_shared<Robot<6>>(
 	// Second argument is a list of joint types
 	// true is prismatic, false is revolute
 	// KUKA KR6 only has revolute joints
-	(Vector<JOINTTYPE_t,6>() << 
-        JOINT_REVOLUTE, JOINT_REVOLUTE, JOINT_REVOLUTE, JOINT_REVOLUTE, JOINT_REVOLUTE, JOINT_REVOLUTE
+	(Vector<quik::JOINTTYPE_t,6>() << 
+        quik::JOINT_REVOLUTE, quik::JOINT_REVOLUTE, quik::JOINT_REVOLUTE, quik::JOINT_REVOLUTE, quik::JOINT_REVOLUTE, quik::JOINT_REVOLUTE
     ).finished(),
 
 	// Third agument is a list of joint directions
@@ -40,25 +40,15 @@ auto R = std::make_shared<Robot<6>>(
 	(Vector<double,6>(6) << 1, 1, 1, 1, 1, 1).finished(),
 
 	// Fourth and fifth arguments are the base and tool transforms, respectively
-	(Matrix4d() <<
-	0.998449,  -0.0354367,   0.0429402,   -0.230335,
-  	0.0363142,    0.999144,   -0.019832,   0.0783694,
- 	-0.0422007,   0.0213606,    0.998881,    0.790578,
-	0,           0 ,          0,           1).finished(),
-	(Matrix4d() <<
-	 0.81327,   -0.483592,    0.323622,   -0.232525,
-   -0.27816,    0.165402,    0.946187,     0.07953,
-  -0.511096,   -0.859524, 6.12323e-17,    0.343995,
-	0,           0 ,          0,           1).finished()
-	// Matrix4d::Identity(4,4),
-	// Matrix4d::Identity(4,4)
+	Matrix4d::Identity(4,4),
+	Matrix4d::Identity(4,4)
 );
 
 // Define the IK options
-const IKSolver<6> IKS(
+const quik::IKSolver<6> IKS(
     R, // The robot object (pointer)
     200, // max number of iterations
-    ALGORITHM_QUIK, // algorithm (ALGORITHM_QUIK, ALGORITHM_NR or ALGORITHM_BFGS)
+    quik::ALGORITHM_QUIK, // algorithm (ALGORITHM_QUIK, ALGORITHM_NR or ALGORITHM_BFGS)
     1e-12, // Exit tolerance
     1e-14, // Minimum step tolerance
     0.05, // iteration-to-iteration improvement tolerance (0.05 = 5% relative improvement)
@@ -66,9 +56,7 @@ const IKSolver<6> IKS(
     80, // Max gradient fails
     1e-10, // lambda2 (lambda^2, the damping parameter for DQuIK and DNR)
     0.34, // Max linear error step
-    1, // Max angular error step
-    1e-5, // Sigma value for armijo rule in BFGS line search
-    0.5 // beta value for armijo rule in BFGS line search
+    1 // Max angular error step
 );
 
 int main()
@@ -82,7 +70,7 @@ int main()
                                 Q_star(DOF, N);	// Solver's solution
 	Matrix<double,6,Dynamic>    e_star(6,N);	// Error at solver pose
     std::vector<int>            iter(N);	    // Store number of iterations of algorithm
-	std::vector<BREAKREASON_t>  breakReason(N);	// Store break out reason
+	std::vector<quik::BREAKREASON_t>  breakReason(N);	// Store break out reason
 	Matrix4d                    T,		        // True forward kinematics transform
 		                        T_star;	        // Forward kinematics at solver solution
 	

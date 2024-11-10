@@ -45,6 +45,7 @@
 #pragma once
 
 #include <memory>
+#include <iostream>
 #include "Eigen/Dense"
 #include "quik/Robot.hpp"
 #include "quik/Geometry.hpp"
@@ -464,6 +465,8 @@ public:
         // Get size of problem
         int N = (int) Q0.cols();
 
+        std::cout<<"Test1" << " " <<Twt.rows()<<" "<<N<<std::endl;
+
         // Ensure inputs are properly given
         if(Twt.rows() != 4*N) throw std::runtime_error("Number of rows in Twt should be 4*N (where N is the number of poses to solve).");
         if(Q_star.cols() != N) throw std::runtime_error("Q_star must be a <DOFxN> matrix (where N is the number of poses to solve).");
@@ -523,8 +526,8 @@ public:
 		std::vector<quik::BREAKREASON_t>& breakReason) const
     {
         // Convert to homogenous transform
-        constexpr int DOF4 = DOF>0 ? (DOF+1)*4 : -1;
-        Matrix<double,DOF4,4> Twt;
+        int N = quat.cols();
+        Matrix<double,Dynamic,4> Twt(N*4,4);
         quik::Geometry::quatpos2hgt(quat, d, Twt);
 
         // Call the first version of IK

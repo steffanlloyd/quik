@@ -29,10 +29,15 @@ install(DIRECTORY include/
 )
 
 # Add executable
-add_executable(example src/example.cpp)
+add_executable(example
+  src/example.cpp
+  src/Geometry.cpp)
 ament_target_dependencies(example Eigen3)
 
-add_executable(kinematics_service_node src/kinematics_service_node.cpp)
+add_executable(kinematics_service_node
+  src/kinematics_service_node.cpp
+  src/Geometry.cpp
+  src/ROSHelpers.cpp)
 ament_target_dependencies(kinematics_service_node
   rclcpp
   Eigen3
@@ -56,6 +61,17 @@ install(TARGETS
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
+)
+
+# Install launch files
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}/
+)
+# Install config files
+install(
+  DIRECTORY config
+  DESTINATION share/${PROJECT_NAME}/
 )
 
 # Export include directories

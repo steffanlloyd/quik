@@ -9,6 +9,7 @@
 #include <chrono>
 #include "Eigen/Dense"
 #include <math.h>
+#include "quik/Geometry.hpp"
 #include "quik/Robot.hpp"
 #include "quik/IKSolver.hpp"
 
@@ -79,7 +80,7 @@ int main()
 	
 	// Generate some random joint configurations for the robot
 	Q.setRandom(DOF, N);
-	
+
 	// Perturb true answers slightly to get initial "guess" (knock over by 0.1 radians)
 	Q0 = Q.array() + 0.1;
 		
@@ -89,6 +90,8 @@ int main()
 		R->FKn( Q.col(i), T );
 		Tn.middleRows<4>(i*4) = T;
 	}
+
+	R->print();
 
 	// Start a timer, to get time
 	auto startTime = chrono::high_resolution_clock::now();

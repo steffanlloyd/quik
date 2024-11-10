@@ -50,6 +50,7 @@
 
 #include "Eigen/Dense"
 #include "quik/Geometry.hpp"
+#include <iostream>
 
 using namespace Eigen;
 using namespace std;

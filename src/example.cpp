@@ -9,7 +9,7 @@
 #include <chrono>
 #include "Eigen/Dense"
 #include <math.h>
-#include "quik/Geometry.hpp"
+#include "quik/geometry.hpp"
 #include "quik/Robot.hpp"
 #include "quik/IKSolver.hpp"
 

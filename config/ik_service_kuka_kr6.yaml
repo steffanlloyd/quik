@@ -1,4 +1,4 @@
-kinematics_service:
+/**:
     ros__parameters:
         max_iterations: 200
         algorithm: ALGORITHM_QUIK

@@ -3,17 +3,16 @@
 #include "Eigen/Dense"
 #include "quik/IKSolver.hpp"
 #include "quik/Robot.hpp"
-#include "quik/Geometry.hpp"
+#include "quik/geometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "quik/srv/ik_service.hpp"
 #include "quik/srv/fk_service.hpp"
 #include "quik/srv/jacobian_service.hpp"
-#include <iostream>
 
 using namespace Eigen;
 
 namespace quik{
-namespace ROSHelpers{
+namespace ros_helpers{
 
 /**
  * @brief Builds a robot based on node parameters for the given node
@@ -126,5 +125,73 @@ void jacobian_service_handler_(
     const std::shared_ptr<quik::Robot<Dynamic>> R);
 
 
-} // End of quik::ROSHelper namespace
+/**
+ * @brief Makes a forward kinematic service call to the client and returns the future
+ * 
+ * @param client 
+ * @param q The desired robot joint angles
+ * @return std::shared_ptr<quik::srv::FKService::Request> 
+ */
+std::shared_ptr<quik::srv::FKService::Request> fk_make_request(const VectorXd& q);
+
+/**
+ * @brief Parses an FK_service response into two eigen objects
+ * 
+ * @param[in] response 
+ * @param[out] quat The quaternion (x,y,z,w)
+ * @param[out] d The point (x,y,z)
+ */
+void fk_parse_response(const quik::srv::FKService::Response::SharedPtr& response,
+    Vector4d& quat, Vector3d& d);
+
+/**
+ * @brief Builds a jacobian request and returns the future for it.
+ * 
+ * @param client 
+ * @param q The robot joint variables (as an Eigen::VectorXd)
+ * @return std::shared_ptr<quik::srv::JacobianService::Request> 
+ */
+std::shared_ptr<quik::srv::JacobianService::Request> jacobian_make_request(const VectorXd& q);
+
+/**
+ * @brief Parses the Jacobian service response into an Eigen::MatrixXD matrix
+ * (of size 6xDOF).
+ * 
+ * @param[in] response 
+ * @param[out] Eigen::MatrixXd The Jacobian matrix. Must be 6xDOF
+ */
+void jacobian_parse_response(const quik::srv::JacobianService::Response::SharedPtr& response, Eigen::MatrixXd& jacobian);
+
+/**
+ * @brief Makes an inverse kinematic service request from Eigen objects, and
+ * returns the future for it.
+ * 
+ * @param client 
+ * @param quat_des The desired quaternion (x,y,z,w) 
+ * @param d_des The desired position (x,y,z)
+ * @param q_0 The initial guess of joint angles
+ * @return std::shared_ptr<quik::srv::IKService::Request> 
+ */
+std::shared_ptr<quik::srv::IKService::Request> ik_make_request(
+    const Vector4d& quat_des,
+    const Vector3d& d_des,
+    const VectorXd& q_0);
+
+/**
+ * @brief Parses the inverse kinematics response into Eigen objects
+ * 
+ * @param response 
+ * @param[out] q_star The found joint angles at the requested pose
+ * @param[out] e_star The 6-vector of error (twist) at the found joint angles
+ * @param[out] iter The number of iterations the algorithm took
+ * @param[out] breakReason The reason the algorithm broke out
+ * @return success (true or false)
+ */
+bool ik_parse_response(const quik::srv::IKService::Response::SharedPtr& response,
+    VectorXd& q_star,
+    Vector<double,6>& e_star,
+    int& iter,
+    quik::BREAKREASON_t& breakReason);
+
+} // End of quik::ros_helpers namespace
 } // End of quik namespace

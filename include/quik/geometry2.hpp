@@ -5,7 +5,7 @@
 using namespace Eigen;
 
 namespace quik{
-namespace Geometry{
+namespace geometry{
 
 void hgtDiff(const Matrix4d& T1, const Matrix4d& T2, Vector<double,6>& e);
 Matrix4d hgtInv( const Matrix4d& T );

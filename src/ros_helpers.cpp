@@ -1,18 +1,17 @@
-#include "quik/ROSHelpers.hpp"
+#include "quik/ros_helpers.hpp"
 #include "Eigen/Dense"
 #include "quik/IKSolver.hpp"
 #include "quik/Robot.hpp"
-#include "quik/Geometry.hpp"
+#include "quik/geometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "quik/srv/ik_service.hpp"
 #include "quik/srv/fk_service.hpp"
 #include "quik/srv/jacobian_service.hpp"
-#include <iostream>
 
 using namespace Eigen;
 
 namespace quik{
-namespace ROSHelpers{
+namespace ros_helpers{
 
 /**
  * @brief Builds a robot based on node parameters for the given node
@@ -43,12 +42,6 @@ quik::Robot<Dynamic> robotFromNodeParameters(rclcpp::Node& node)
         }
         return matrix;
     };
-    // Function to parse joint types
-    auto getJointType_ = [](const std::string&jointType){
-        if (jointType == "JOINT_REVOLUTE" || jointType == "REVOLUTE") return quik::JOINT_REVOLUTE;
-        if (jointType == "JOINT_PRISMATIC" || jointType == "PRISMATIC") return quik::JOINT_PRISMATIC;
-        throw std::runtime_error("Invalid joint type: " + jointType);
-    };
 
     // Declare parameters for and build robot
     std::vector<double> dh_param = node.declare_parameter("dh", std::vector<double>{-1.0});
@@ -73,7 +66,7 @@ quik::Robot<Dynamic> robotFromNodeParameters(rclcpp::Node& node)
 
     // Link types
     std::vector<quik::JOINTTYPE_t> link_types_data;
-    for (const auto& lt : link_types_str) link_types_data.push_back(getJointType_(lt)); // Convert from string to JOINTTYPE_t
+    for (const auto& lt : link_types_str) link_types_data.push_back( quik::str2jointtype(lt)); // Convert from string to JOINTTYPE_t
     Vector<quik::JOINTTYPE_t,Dynamic> link_types = Map<Vector<quik::JOINTTYPE_t,Dynamic>, Unaligned>(link_types_data.data(), link_types_data.size());
 
     // Q sign
@@ -132,19 +125,10 @@ quik::IKSolver<Dynamic> IKSolverFromNodeParameters(
     rclcpp::Node& node,
     const std::shared_ptr<quik::Robot<Dynamic>> R)
 {
-    // Define some helper functions
-    // Function to parse algorithm types
-    auto getAlgorithm_ = [](const std::string& algorithm){
-        if (algorithm == "ALGORITHM_QUIK" || algorithm == "QUIK") return quik::ALGORITHM_QUIK;
-        if (algorithm == "ALGORITHM_NR" || algorithm == "NR") return quik::ALGORITHM_NR;
-        if (algorithm == "ALGORITHM_BFGS" || algorithm == "BFGS") return quik::ALGORITHM_BFGS;
-        throw std::runtime_error("Invalid algorithm type: " + algorithm);
-    };
-
     return quik::IKSolver<Dynamic>(
         R,
         node.declare_parameter("max_iterations", 200),
-        getAlgorithm_(node.declare_parameter("algorithm", "ALGORITHM_QUIK")),
+        quik::str2algorithm(node.declare_parameter("algorithm", "ALGORITHM_QUIK")),
         node.declare_parameter("exit_tolerance", 1e-12),
         node.declare_parameter("minimum_step_size", 1e-14),
         node.declare_parameter("relative_improvement_tolerance", 0.05),
@@ -178,6 +162,8 @@ void ik_service_handler_(
 {
     (void)request_header;
 
+    RCLCPP_DEBUG(LOGGER_IK, "Received request on /ik_service");
+
     // Parse request values
     Vector4d quat(
         request->target_pose.orientation.x,
@@ -210,6 +196,14 @@ void ik_service_handler_(
     response->iter = iter;
     response->break_reason = breakReason;
     response->success = breakReason == quik::BREAKREASON_TOLERANCE;
+
+    if(response->success){
+        RCLCPP_INFO(LOGGER_IK, "Successfully processed IK request. Took %d iterations, break reason: %s, normed error is %.4g.",
+            iter, quik::breakreason2str(breakReason).c_str(), e_star.norm());
+    }else{
+        RCLCPP_WARN(LOGGER_IK, "Processed IK request. Warning: algorithm did not converge successfully (break reason is %s. Normed error is: %.4g)", 
+            quik::breakreason2str(breakReason).c_str(), e_star.norm());
+    }
 }
 
 /**
@@ -232,7 +226,7 @@ void fk_service_handler_(
     (void)request_header;
 
 
-    RCLCPP_INFO(LOGGER_FK, "Received request on /fk_service");
+    RCLCPP_DEBUG(LOGGER_FK, "Received request on /fk_service");
 
     // Convert the incoming joint angles to an Eigen Vector
     Eigen::VectorXd Q = Eigen::VectorXd::Map(request->q.data(), request->q.size());
@@ -257,7 +251,7 @@ void fk_service_handler_(
     R->FKn(Q, T, frame);
 
     // Convert to quaternion and position
-    quik::Geometry::hgt2quatpos(T, quat, d);
+    quik::geometry::hgt2quatpos(T, quat, d);
 
     // Convert the result to a geometry_msgs::Pose message
     response->pose.position.x = d(0);
@@ -291,6 +285,8 @@ void jacobian_service_handler_(
 {
     (void)request_header;
 
+    RCLCPP_DEBUG(LOGGER_JACOBIAN, "Received request on /jacobian_service");
+
     // Convert the incoming joint angles to an Eigen Vector
     Eigen::VectorXd Q = Eigen::VectorXd::Map(request->q.data(), request->q.size());
 
@@ -309,8 +305,123 @@ void jacobian_service_handler_(
     // Flatten the Jacobian matrix and assign to the response
     Eigen::VectorXd J_flat = Eigen::Map<Eigen::VectorXd>(J.data(), J.size());
     response->jacobian.assign(J_flat.data(), J_flat.data() + J_flat.size());
+
+    RCLCPP_INFO(LOGGER_JACOBIAN, "Request processed successfully on /jacobian_service");
 }
 
 
-} // End of quik::ROSHelper namespace
+/**
+ * @brief Makes a forward kinematic service call to the client and returns the future
+ * 
+ * @param q The desired robot joint angles
+ * @return std::shared_ptr<quik::srv::FKService::Request> 
+ */
+std::shared_ptr<quik::srv::FKService::Request> fk_make_request(const Eigen::VectorXd& q)
+{
+    auto request = std::make_shared<quik::srv::FKService::Request>();
+    for (int i=0; i<q.size(); ++i) request->q.push_back(q(i));
+    return request;
+}
+
+/**
+ * @brief Parses an FK_service response into two eigen objects
+ * 
+ * @param[in] response 
+ * @param[out] quat The quaternion (x,y,z,w)
+ * @param[out] d The point (x,y,z)
+ */
+void fk_parse_response(const quik::srv::FKService::Response::SharedPtr& response,
+    Vector4d& quat, Vector3d& d)
+{
+    quat << response->pose.orientation.x, response->pose.orientation.y, response->pose.orientation.z, response->pose.orientation.w;
+    d << response->pose.position.x, response->pose.position.y, response->pose.position.z;
+}
+
+/**
+ * @brief Builds a jacobian request and returns the future for it.
+ * 
+ * @param q The robot joint variables (as an Eigen::VectorXd)
+ * @return std::shared_ptr<quik::srv::JacobianService::Request>
+ */
+std::shared_ptr<quik::srv::JacobianService::Request> jacobian_make_request(const Eigen::VectorXd& q)
+{
+    auto request = std::make_shared<quik::srv::JacobianService::Request>();
+    for (int i=0; i<q.size(); ++i) request->q.push_back(q(i));
+    return request;
+}
+
+/**
+ * @brief Parses the Jacobian service response into an Eigen::MatrixXD matrix
+ * (of size 6xDOF).
+ * 
+ * @param[in] response 
+ * @param[out] Eigen::MatrixXd The Jacobian matrix. Must be 6xDOF
+ */
+void jacobian_parse_response(const quik::srv::JacobianService::Response::SharedPtr& response, Eigen::MatrixXd& jacobian)
+{
+    int dof = response->jacobian.size() / 6;
+
+    // Check that the input matrix is of the correct size
+    if (jacobian.rows() != 6 || jacobian.cols() != dof) {
+        throw std::invalid_argument("Input matrix must be of size 6xDOF");
+    }
+
+    // Assign result
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < dof; ++j) {
+            jacobian(i, j) = response->jacobian[i * dof + j];
+        }
+    }
+}
+
+/**
+ * @brief Makes an inverse kinematic service request from Eigen objects, and
+ * returns the future for it.
+ * 
+ * @param quat_des The desired quaternion (x,y,z,w) 
+ * @param d_des The desired position (x,y,z)
+ * @param q_0 The initial guess of joint angles
+ * @return std::shared_ptr<quik::srv::IKService::Request>
+ */
+std::shared_ptr<quik::srv::IKService::Request> ik_make_request(
+    const Eigen::Vector4d& quat_des,
+    const Eigen::Vector3d& d_des,
+    const Eigen::VectorXd& q_0)
+{
+    auto request = std::make_shared<quik::srv::IKService::Request>();
+    request->target_pose.orientation.x = quat_des(0);
+    request->target_pose.orientation.y = quat_des(1);
+    request->target_pose.orientation.z = quat_des(2);
+    request->target_pose.orientation.w = quat_des(3);
+    request->target_pose.position.x = d_des(0);
+    request->target_pose.position.y = d_des(1);
+    request->target_pose.position.z = d_des(2);
+    for (int i=0; i<q_0.size(); ++i) request->q_0.push_back(q_0(i));
+    return request;
+}
+
+/**
+ * @brief Parses the inverse kinematics response into Eigen objects
+ * 
+ * @param response 
+ * @param[out] q_star The found joint angles at the requested pose
+ * @param[out] e_star The 6-vector of error (twist) at the found joint angles
+ * @param[out] iter The number of iterations the algorithm took
+ * @param[out] breakReason The reason the algorithm broke out
+ * @return success (true or false)
+ */
+bool ik_parse_response(const quik::srv::IKService::Response::SharedPtr& response,
+    VectorXd& q_star,
+    Vector<double,6>& e_star,
+    int& iter,
+    quik::BREAKREASON_t& breakReason)
+{
+    q_star = Eigen::VectorXd::Map(response->q_star.data(), response->q_star.size());
+    e_star = Eigen::VectorXd::Map(response->e_star.data(), response->e_star.size());
+    iter = response->iter;
+    breakReason = static_cast<quik::BREAKREASON_t>(response->break_reason);
+    return response->success;
+}
+
+} // End of quik::ros_helpers namespace
 } // End of quik namespace

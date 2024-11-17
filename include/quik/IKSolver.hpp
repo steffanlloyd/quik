@@ -48,17 +48,14 @@
 #include <iostream>
 #include "Eigen/Dense"
 #include "quik/Robot.hpp"
-#include "quik/Geometry.hpp"
+#include "quik/geometry.hpp"
 
 
 using namespace Eigen;
+using namespace std;
 
 namespace quik{
 
-/**
- * @brief List of break reasons (reasons why the algorithm stopped)
- * 
- */
 enum BREAKREASON_t : uint8_t {
     BREAKREASON_TOLERANCE = 0, // Tolerance reached
     BREAKREASON_MIN_STEP, // minimum step size is reached
@@ -66,11 +63,47 @@ enum BREAKREASON_t : uint8_t {
     BREAKREASON_GRAD_FAILS // Gradient failed to improve
 };
 
+inline quik::BREAKREASON_t str2breakreason(std::string breakReason) {
+    if (breakReason == "BREAKREASON_TOLERANCE") return quik::BREAKREASON_TOLERANCE;
+    else if (breakReason == "BREAKREASON_MIN_STEP") return quik::BREAKREASON_MIN_STEP;
+    else if (breakReason == "BREAKREASON_MAX_ITER") return quik::BREAKREASON_MAX_ITER;
+    else if (breakReason == "BREAKREASON_GRAD_FAILS") return quik::BREAKREASON_GRAD_FAILS;
+    else throw std::runtime_error("Invalid BREAKREASON string");
+};
+
+inline std::string breakreason2str(quik::BREAKREASON_t breakReason) {
+    switch(breakReason) {
+        case quik::BREAKREASON_TOLERANCE: return "BREAKREASON_TOLERANCE";
+        case quik::BREAKREASON_MIN_STEP: return "BREAKREASON_MIN_STEP";
+        case quik::BREAKREASON_MAX_ITER: return "BREAKREASON_MAX_ITER";
+        case quik::BREAKREASON_GRAD_FAILS: return "BREAKREASON_GRAD_FAILS";
+        default: return "UNKNOWN_BREAKREASON";
+    }
+};
+
 enum ALGORITHM_t : uint8_t {
     ALGORITHM_QUIK = 0, // Recommended: The QuIK method
     ALGORITHM_NR, // Newton-Raphson or Levenberg-Marquardt
     ALGORITHM_BFGS // Not recommended: The BFGS line search
 };
+
+inline ALGORITHM_t str2algorithm(const std::string& algorithm)
+{
+    if (algorithm == "ALGORITHM_QUIK") return ALGORITHM_QUIK;
+    else if (algorithm == "ALGORITHM_NR") return ALGORITHM_NR;
+    else if (algorithm == "ALGORITHM_BFGS") return ALGORITHM_BFGS;
+    else throw std::runtime_error("Invalid ALGORITHM_t string");
+};
+
+inline std::string algorithm2str(ALGORITHM_t algorithm) {
+    switch(algorithm) {
+        case ALGORITHM_QUIK: return "ALGORITHM_QUIK";
+        case ALGORITHM_NR: return "ALGORITHM_NR";
+        case ALGORITHM_BFGS: return "ALGORITHM_BFGS";
+        default: return "UNKNOWN_ALGORITHM";
+    }
+};
+
 
 template<int DOF=Dynamic>
 class IKSolver {
@@ -242,7 +275,7 @@ public:
                 this->R->jacobian(T, J, true);
                 
                 // Update error between target and current error, store in e
-                Geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
+                geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
             }
             
             // Calculate norm
@@ -335,7 +368,7 @@ public:
                     
                     // Recalculate cost and error
                     this->R->FK( Q + gamma*s0, T );
-                    Geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
+                    geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
                     cost_ip1 = 0.5*e.array().square().sum();
                     
                     // Do line search
@@ -348,7 +381,7 @@ public:
                         
                         // Recalculate cost
                         this->R->FK( Q + gamma*s0, T );
-                        Geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
+                        geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
                         cost_ip1 = 0.5*e.array().square().sum();
                     }
                     
@@ -433,7 +466,7 @@ public:
     {
         // Initialize and compute Twt
         Matrix4d Twt;
-        Geometry::quatpos2hgt(quat, d, Twt);
+        geometry::quatpos2hgt(quat, d, Twt);
 
         // Call the first version of IK
         this->IK(Twt, Q0, Q_star, e_star, iter, breakReason);
@@ -528,7 +561,7 @@ public:
         // Convert to homogenous transform
         int N = quat.cols();
         Matrix<double,Dynamic,4> Twt(N*4,4);
-        quik::Geometry::quatpos2hgt(quat, d, Twt);
+        quik::geometry::quatpos2hgt(quat, d, Twt);
 
         // Call the first version of IK
         this->IK(Twt, Q0, Q_star, e_star, iter, breakReason);
@@ -598,9 +631,7 @@ public:
 	void printOptions() const
     {
         cout << "\tIKSolver.max_iterations: " << this->max_iterations << endl;
-        if(this->algorithm == quik::ALGORITHM_QUIK) cout << "\tIKSolver.algorithm: ALGORITHM_QUIK " << endl;
-        if(this->algorithm == quik::ALGORITHM_NR) cout << "\tIKSolver.algorithm: ALGORITHM_NR " << endl;
-        if(this->algorithm == quik::ALGORITHM_BFGS) cout << "\tIKSolver.algorithm: ALGORITHM_BFGS " << endl;
+        cout << "\tIKSolver.algorithm: " << quik::algorithm2str(this->algorithm) << endl;
         cout << "\tIKSolver.exit_tolerance: " << this->exit_tolerance << endl;
         cout << "\tIKSolver.minimum_step_size: " << this->minimum_step_size << endl;
         cout << "\tIKSolver.relative_improvement_tolerance: " << this->relative_improvement_tolerance << endl;
@@ -614,6 +645,7 @@ public:
         }
         cout << endl << endl;
     }
+
 }; // End of class definition quik::IKSolver
 
 } // End of namespace quik

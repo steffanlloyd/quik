@@ -49,8 +49,8 @@
 #pragma once
 
 #include "Eigen/Dense"
-#include "quik/Geometry.hpp"
-#include <iostream>
+#include "quik/geometry.hpp"
+#include "quik/utilities.hpp"
 
 using namespace Eigen;
 using namespace std;
@@ -60,6 +60,20 @@ namespace quik{
 enum JOINTTYPE_t : bool {
 	JOINT_REVOLUTE = false,
 	JOINT_PRISMATIC = true
+};
+
+inline std::string jointtype2str(quik::JOINTTYPE_t jointType) {
+    switch(jointType) {
+        case quik::JOINT_REVOLUTE: return "JOINT_REVOLUTE";
+        case quik::JOINT_PRISMATIC: return "JOINT_PRISMATIC";
+        default: return "UNKNOWN_JOINTTYPE";
+    }
+};
+
+inline quik::JOINTTYPE_t str2jointtype(std::string jointType) {
+    if (jointType == "JOINT_REVOLUTE") return quik::JOINT_REVOLUTE;
+    else if (jointType == "JOINT_PRISMATIC") return quik::JOINT_PRISMATIC;
+    else throw std::runtime_error("Invalid JOINTTYPE string");
 };
 
 template<int DOF=Dynamic>
@@ -111,8 +125,8 @@ public:
 		if(this->DH.cols() != 4) throw std::runtime_error("DH must be a DOFx4 matrix");
 		if(this->linkTypes.size() != this->dof) throw std::runtime_error("linkTypes must be the same size as the DH matrix has rows.");
 		if(this->Qsign.size() != this->dof) throw std::runtime_error("Qsign must be the same size as the DH matrix has rows.");
-		if(!Geometry::ishgt(this->Ttool)) throw std::runtime_error("Ttool must be a proper homogeneous transformation matrix");
-		if(!Geometry::ishgt(this->Tbase)) throw std::runtime_error("Tbase must be a proper homogeneous transformation matrix");
+		if(!geometry::ishgt(this->Ttool)) throw std::runtime_error("Ttool must be a proper homogeneous transformation matrix");
+		if(!geometry::ishgt(this->Tbase)) throw std::runtime_error("Tbase must be a proper homogeneous transformation matrix");
 	}
 	
 	/**
@@ -120,15 +134,16 @@ public:
 	 */
 	void print() const
 	{
-		cout << "R.DH: " << endl << this->DH << endl;
-		cout << "R.Tbase: " << endl << this->Tbase << endl;
-		cout << "R.Ttool: " << endl << this->Ttool << endl;
-		cout << "R.linkTypes: ";
+		cout << "R.DH:" << endl << this->DH.format(quik::utilities::CleanFmt) << endl;
+		cout << "R.Tbase: " << endl << this->Tbase.format(quik::utilities::CleanFmt) << endl;
+		cout << "R.Ttool: " << endl << this->Ttool.format(quik::utilities::CleanFmt) << endl;
+		cout << "R.linkTypes: [";
 		for(int i = 0; i < this->linkTypes.size(); i++){
-			if(this->linkTypes(i)) cout << "PRISMATIC ";
-			else cout << "REVOLUTE ";
+			if (i!=0) cout << ", ";
+			if(this->linkTypes(i)) cout << "PRISMATIC";
+			else cout << "REVOLUTE";
 		}
-		cout << endl;
+		cout << "]" << endl;
 		cout << "R.Qsign: " << this->Qsign.transpose() << endl;
 		cout << "R.dof: " << this->dof << endl << endl << endl;
 	}

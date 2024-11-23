@@ -40,6 +40,7 @@ public:
             RCLCPP_INFO(this->get_logger(), "jacobian_service not available, waiting again...");
         }
 
+        // Run random forward/inverse kinematics problem every 5 seconds
         this->timer_ = this->create_wall_timer(
             std::chrono::seconds(5),
             std::bind(&SampleClientNode::timer_callback, this));
@@ -66,9 +67,8 @@ private:
             // Parse FK result
             Vector4d quat; Vector3d d;
             quik::ros_helpers::fk_parse_response(fk_result, quat, d);
-            RCLCPP_INFO(this->get_logger(), "Got FK result (quat): %s",
-                quik::utilities::eigen2str(quat.transpose()).c_str());
-            RCLCPP_INFO(this->get_logger(), "Got FK result (d): %s",
+            RCLCPP_INFO(this->get_logger(), "Got FK result: \n\tQuaternion: %s\n\tPoint: %s",
+                quik::utilities::eigen2str(quat.transpose()).c_str(),
                 quik::utilities::eigen2str(d.transpose()).c_str());
 
             // Perturb initial joint angles
@@ -78,19 +78,19 @@ private:
                 quik::utilities::eigen2str(q_perturbed.transpose()).c_str());
 
             // Call IK service
+            auto startTime = chrono::high_resolution_clock::now();
             auto ik_request = quik::ros_helpers::ik_make_request(quat, d, q_perturbed);
             auto ik_result = this->ik_client_->async_send_request(ik_request).get();
-
+            chrono::duration<double, std::nano> elapsed = chrono::high_resolution_clock::now() - startTime;
+            
             // Parse and print IK results
             VectorXd q_star(this->R->dof); Vector<double,6> e_star; int iter; quik::BREAKREASON_t breakReason;
             auto success = quik::ros_helpers::ik_parse_response(ik_result, q_star, e_star, iter, breakReason);
             RCLCPP_INFO(this->get_logger(), "IK result: \n%s",
                 quik::utilities::eigen2str(q_star.transpose()).c_str());
-            RCLCPP_INFO(this->get_logger(), "Error on each joint (norm %.4g):\n%s", 
-                e_star.norm(),
-                quik::utilities::eigen2str(e_star.transpose()).c_str());
-            RCLCPP_INFO(this->get_logger(), "Took %d iterations, broke because: %s, success %s.", 
-                iter, quik::breakreason2str(breakReason).c_str(), success ? "true" : "false");
+            RCLCPP_INFO(this->get_logger(), "Normed error: %.4g", e_star.norm());
+            RCLCPP_INFO(this->get_logger(), "Took %d iterations, broke because: %s, success %s. Elapsed time: %.2f microseconds.", 
+                iter, quik::breakreason2str(breakReason).c_str(), success ? "true" : "false", elapsed.count()/1e3);
         });
 
         // Call Jacobian service

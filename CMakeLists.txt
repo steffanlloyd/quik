@@ -29,42 +29,52 @@ install(DIRECTORY include/
 )
 
 # Add executable
-add_executable(example
-  src/example.cpp
+add_executable(sample_cpp_usage
+  src/sample_cpp_usage.cpp
   src/geometry.cpp)
-ament_target_dependencies(example Eigen3)
+ament_target_dependencies(sample_cpp_usage Eigen3)
 
-add_executable(kinematics_service_node
-  src/kinematics_service_node.cpp
+add_executable(ros_kinematics_service_node
+  src/ros_kinematics_service_node.cpp
   src/geometry.cpp
   src/ros_helpers.cpp)
-ament_target_dependencies(kinematics_service_node
+ament_target_dependencies(ros_kinematics_service_node
   rclcpp
   Eigen3
   rosidl_default_runtime
   geometry_msgs
   std_msgs)
 
-add_executable(sample_client_node
-  src/sample_client_node.cpp
+add_executable(sample_ros_client_node
+  src/sample_ros_client_node.cpp
   src/geometry.cpp
   src/ros_helpers.cpp)
-ament_target_dependencies(sample_client_node
+ament_target_dependencies(sample_ros_client_node
   rclcpp
   Eigen3
   rosidl_default_runtime
   geometry_msgs
   std_msgs)
 
-# add_dependencies(kinematics_service_node ${PROJECT_NAME}__rosidl_typesupport_cpp)
+add_executable(sample_ros_cpp_node
+    src/sample_ros_cpp_node.cpp
+    src/geometry.cpp
+    src/ros_helpers.cpp)
+ament_target_dependencies(sample_ros_cpp_node
+    rclcpp
+    Eigen3
+    rosidl_default_runtime
+    geometry_msgs
+    std_msgs)
+
 ament_export_dependencies(rosidl_default_runtime)
-
 
 # Install library and create export set
 install(TARGETS
-  example
-  kinematics_service_node
-  sample_client_node
+  sample_cpp_usage
+  ros_kinematics_service_node
+  sample_ros_client_node
+  sample_ros_cpp_node
   DESTINATION lib/${PROJECT_NAME})
 
 install(TARGETS
@@ -92,11 +102,8 @@ ament_export_include_directories(include)
 rosidl_get_typesupport_target(cpp_typesupport_target
   ${PROJECT_NAME} rosidl_typesupport_cpp)
   
-target_link_libraries(kinematics_service_node "${cpp_typesupport_target}")
-target_link_libraries(sample_client_node "${cpp_typesupport_target}")
-
-
-# Export targets
-# ament_export_targets(${PROJECT_NAME}_export HAS_LIBRARY_TARGET)
+target_link_libraries(ros_kinematics_service_node "${cpp_typesupport_target}")
+target_link_libraries(sample_ros_client_node "${cpp_typesupport_target}")
+target_link_libraries(sample_ros_cpp_node "${cpp_typesupport_target}")
 
 ament_package()

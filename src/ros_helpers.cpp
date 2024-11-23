@@ -188,7 +188,9 @@ void ik_service_handler_(
     quik::BREAKREASON_t breakReason;
 
     // Use the IK function
+    auto startTime = chrono::high_resolution_clock::now();
     IKS->IK( quat, d, Q0, Q_star, e_star, iter, breakReason);
+    chrono::duration<double, std::nano> elapsed = chrono::high_resolution_clock::now() - startTime;
 
     // Convert output values back to response
     for (int i = 0; i < Q_star.size(); ++i) response->q_star.push_back(Q_star[i]);
@@ -198,8 +200,8 @@ void ik_service_handler_(
     response->success = breakReason == quik::BREAKREASON_TOLERANCE;
 
     if(response->success){
-        RCLCPP_INFO(LOGGER_IK, "Successfully processed IK request. Took %d iterations, break reason: %s, normed error is %.4g.",
-            iter, quik::breakreason2str(breakReason).c_str(), e_star.norm());
+        RCLCPP_INFO(LOGGER_IK, "Successfully processed IK request. Took %d iterations, break reason: %s, normed error is %.4g. Elapsed time: %.2f microseconds.",
+            iter, quik::breakreason2str(breakReason).c_str(), e_star.norm(), elapsed.count()/1e3);
     }else{
         RCLCPP_WARN(LOGGER_IK, "Processed IK request. Warning: algorithm did not converge successfully (break reason is %s. Normed error is: %.4g)", 
             quik::breakreason2str(breakReason).c_str(), e_star.norm());

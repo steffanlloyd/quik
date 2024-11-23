@@ -228,6 +228,26 @@ public:
 	}
 
 	/**
+	 * @brief Computes the forward kinematics for a given set of joint angles, and returns the result
+	 * as a quaternion and a point
+	 * 
+	 * @param[in] Q The input joint angles
+	 * @param[out] quat Vector4d The quaternion out
+	 * @param[out] d Vector3d the point out
+	 * @param[in] frame=-1 int The frame to compute the transform for. Put a negative value for the tool
+	 * frame.
+	 */
+	void FKn(const Vector<double,DOF> &Q, Vector4d& quat, Vector3d& d, int frame=-1) const
+	{
+		// Call forward kinematics to a transform
+		Matrix4d T;
+		this->FKn(Q, T, frame);
+
+		// Convert to a quaternion and point
+        quik::geometry::hgt2quatpos(T, quat, d);
+	}
+
+	/**
 	 * @brief Computes the geometric jacobian of the manipulator, based on joint angles.
 	 * 
 	 * If you already have computed the forward kinematics, this function is inneficient. Use the second

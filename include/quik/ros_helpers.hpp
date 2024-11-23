@@ -1,3 +1,22 @@
+/**
+ * @file ros_helpers.hpp
+ * @author Steffan Lloyd (steffan.lloyd@nibio.no)
+ * @brief Defines several helper functions for using quik in ROS, including:
+ * - robotFromNodeParameters: Builds a robot from the node's parameters, defined
+ *   in a yaml file.
+ * - IKSolverFromNodeParameters: Builds an IKsolver object from the nodes parameters,
+ *   defined in a yaml file.
+ * - The service handles for ik_service, fk_service, and jacobian_service
+ * - Helper functions to make and parse service requests for fk_service,
+ *   ik_service, and jacobian_service.
+ * 
+ * Full documentation provided at the header of each function.
+ * 
+ * @date 2024-11-23
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #pragma once
 
 #include "Eigen/Dense"

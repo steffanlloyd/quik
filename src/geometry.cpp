@@ -1,3 +1,23 @@
+/**
+ * @file geometry.cpp
+ * @author Steffan Lloyd (steffan.lloyd@nibio.no)
+ * @brief Defines the c++ source code for several geometry functions in the
+ * quik::geometry namespace, such as:
+ *  - quik::geometry::hgtDiff: Computes the twist error between any two homogeneous tranforms
+ *  - quik::geometry::hgtInv: Computes the inverse of a homogeneous transform without inverting
+ *    the matrix (for speed).
+ * - quik::geometry::hgt2quatpos: converts a homogeneous transform to a 
+ *   quaternion and a point.
+ * - quik::geometry::quatpos2hgt: converts a quaternion and a point to a homogeneous
+ *   transform.
+ * - quik::geometry::isRotation: checks if a 3x3 matrix is a rotation matrix.
+ * - quik::geometry::ishgt: Checks if a 4x4 matrix is a homogeneous transform.
+ * 
+ * @date 2024-11-23
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #include "quik/geometry.hpp"
 #include "Eigen/Dense"
 #include <iostream>

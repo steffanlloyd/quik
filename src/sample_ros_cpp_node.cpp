@@ -1,3 +1,18 @@
+/**
+ * @file sample_ros_cpp_node.cpp
+ * @author Steffan Lloyd (steffan.lloyd@nibio.no)
+ * @brief This file contains sample code for using the quik kinematics package
+ * directly in your C++ code (e.g. without using the service client). This will be 
+ * much faster, and for most robots on a typical PC you'd be looking about 1-3 microseconds
+ * for inverse kinematics or jacobian calls, and 10-30 microseconds for an inverse kinematics call.
+ * The robot and inverse kinematics solver in these examples are built using a helper function
+ * that loads the parameters from a yaml file that must be specified at runtime. However, these
+ * objects can also be built directly: see example in sample_cpp_usage.cpp.
+ * @date 2024-11-23
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #include "rclcpp/rclcpp.hpp"
 #include "quik/IKSolver.hpp"
 #include "quik/Robot.hpp"

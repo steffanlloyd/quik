@@ -1,3 +1,22 @@
+/**
+ * @file ros_helpers.cpp
+ * @author Steffan Lloyd (steffan.lloyd@nibio.no)
+ * @brief Defines several helper functions for using quik in ROS, including:
+ * - robotFromNodeParameters: Builds a robot from the node's parameters, defined
+ *   in a yaml file.
+ * - IKSolverFromNodeParameters: Builds an IKsolver object from the nodes parameters,
+ *   defined in a yaml file.
+ * - The service handles for ik_service, fk_service, and jacobian_service
+ * - Helper functions to make and parse service requests for fk_service,
+ *   ik_service, and jacobian_service.
+ * 
+ * Full documentation provided at the header of each function.
+ * 
+ * @date 2024-11-23
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #include "quik/ros_helpers.hpp"
 #include "Eigen/Dense"
 #include "quik/IKSolver.hpp"
@@ -53,16 +72,21 @@ quik::Robot<Dynamic> robotFromNodeParameters(rclcpp::Node& node)
     // Check if parameters are still at their default (invalid) values
     if (dh_param.size() == 1 && dh_param[0] == -1.0)
         RCLCPP_ERROR(node.get_logger(), "Parameter 'dh' has not been set.");
+    
+    int DOF = dh_param.size()/4;
     if (link_types_str.size() == 1 && link_types_str[0] == "invalid")
         RCLCPP_ERROR(node.get_logger(), "Parameter 'link_types' has not been set.");
-    if (q_sign_double.size() == 1 && q_sign_double[0] == -1.0)
-        RCLCPP_ERROR(node.get_logger(), "Parameter 'q_sign' has not been set.");
-    if (q_sign_double.size() != link_types_str.size() || q_sign_double.size() != dh_param.size()/4)
+    if (static_cast<int>(q_sign_double.size()) == 1 && q_sign_double[0] == -1.0){
+        RCLCPP_INFO(node.get_logger(), "Parameter 'q_sign' not provided. Assuming all links use positive direction.");
+        q_sign_double = std::vector<double>(DOF, 1.0);
+    }
+    if (static_cast<int>(q_sign_double.size()) != static_cast<int>(link_types_str.size())
+        || static_cast<int>(q_sign_double.size()) != DOF)
         RCLCPP_ERROR(node.get_logger(), "DH, q_sign and linktype variables don't have congruent sizing");
 
     // Get Robot and IKSolver arguments, parse them into Eigen objects
     // DH Parameters
-    Matrix<double, Dynamic, 4> DH = Map<Matrix<double, 4, Dynamic>>(dh_param.data(), 4, dh_param.size()/4).transpose();
+    Matrix<double, Dynamic, 4> DH = Map<Matrix<double, 4, Dynamic>>(dh_param.data(), 4, DOF).transpose();
 
     // Link types
     std::vector<quik::JOINTTYPE_t> link_types_data;
@@ -135,7 +159,7 @@ quik::IKSolver<Dynamic> IKSolverFromNodeParameters(
         node.declare_parameter("max_consecutive_grad_fails", 10),
         node.declare_parameter("max_gradient_fails", 80),
         node.declare_parameter("lambda_squared", 1e-10),
-        node.declare_parameter("max_linear_step_size", 0.34),
+        node.declare_parameter("max_linear_step_size", -1.0),
         node.declare_parameter("max_angular_step_size", 1.0),
         node.declare_parameter("armijo_sigma", 1e-5),
         node.declare_parameter("armijo_beta", 0.5)

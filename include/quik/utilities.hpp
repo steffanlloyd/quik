@@ -1,3 +1,12 @@
+/**
+ * @file utilities.hpp
+ * @author Steffan Lloyd (steffan.lloyd@nibio.no)
+ * @brief Defines helper functions that are not ROS-related.
+ * @date 2024-11-23
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #pragma once
 
 #include "Eigen/Dense"

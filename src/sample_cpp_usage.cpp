@@ -1,9 +1,14 @@
-//
-//  example.cpp
-//  Example code showing how the IK functions can be called.
-//
-//  Created by Steffan Lloyd on 2021-08-20.
-//
+/**
+ * @file sample_cpp_usage.cpp
+ * @author Steffan Lloyd (steffan.lloyd@nibio.no)
+ * @brief Demo code on how to define a robot, and call the forward and inverse kinematics functions
+ * in pure C++ (outside of ros). This code can be compiled in ROS but does not depend on it in
+ * any way.
+ * @date 2024-11-23
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 
 #include <iostream>
 #include <chrono>

@@ -1,50 +1,52 @@
-//
-//  Robot.cpp
-//  QuIK
-//
-// 	A simple class allowing for kinematic analysis of a serial chain.
-//
-//	Properties:
-//		- Matrix<double,DOF,4> DH: A DOFx4 array of the DH params in the following order:
-//         [a_1  alpha_1    d_1   theta_1;
-//          :       :        :       : 
-//          an   alpha_n    d_n   theta_n ];
-//
-//      - Vector<bool,DOF> linkTypes: A vector of link types. Should be true if joint is a
-//       prismatic joint, false otherwise.
-//
-//      - Vector<double,6> Qsign: A vector of link direction (-1 or 1). Allows you to
-//       change the sign of the joint variable.
-//
-//		- Matrix4d Tbase: The base transform of the robot (between world frame and first
-//		 DH frame)
-//
-//		- Matrix4d Ttool: The tool transform of the robot (between DOF'th frame and tool
-//		 frame)
-//
-// Methods:
-//
-//		void FK( const MatrixQ& Q, MatrixTi& T) const;
-//		Computes the forward kinematics of the manipulator for a given set of joint angles.
-//		Result is stored in a Matrix<double,DOF*4,4> matrix, with each frame transform
-//		stacked vertically ontop of each other.
-//
-//		void FKn( const MatrixQ& Q, Matrix4d& T) const;
-//		Computes the forward kinematics for a given set of joint angles, but only returns
-//		the final frame as a Matrix<double,4,4>.
-//
-//   	void jacobian( MatrixTi& T, MatrixJ& J) const;
-//		Computes the geometric jacobian of the manipulator, based on the stacked forward
-//		kinematics transforms given by the FK function.
-//
-//   	void hessianProduct( const MatrixJ& J, const MatrixQ& dQ, MatrixJ& A) const
-//		Computes the product H*dQ, where H is the geometric hessian of the robot. This
-//		function never computes H explicitely, and instead just reduces the computed values
-//	 	through multiplication as they are computed. The result is added to A.
-//		Note, A must be pre-initialized with 0's before calling this function!
-//
-//  Created by Steffan Lloyd on 2024-10-26.
-//
+/**
+ * @file Robot.hpp
+ * @author Steffan Lloyd (steffan.lloyd@nibio.no)
+ * @brief Defines the quik::Robot class, which stores the robot structure and can perform
+ * various forward and velocity kinematic computations with very high efficiency.
+ * Properties:
+ *       - Matrix<double,DOF,4> DH: A DOFx4 array of the DH params in the following order:
+ *          [a_1  alpha_1    d_1   theta_1;
+ *           :       :        :       : 
+ *           an   alpha_n    d_n   theta_n ];
+ *
+ *       - Vector<bool,DOF> linkTypes: A vector of link types. Should be true if joint is a
+ *         prismatic joint, false otherwise.
+ *
+ *       - Vector<double,6> Qsign: A vector of link direction (-1 or 1). Allows you to
+ *         change the sign of the joint variable.
+ *
+ *       - Matrix4d Tbase: The base transform of the robot (between world frame and first
+ *         DH frame)
+ *
+ *       - Matrix4d Ttool: The tool transform of the robot (between DOF'th frame and tool
+ *        frame)
+ *
+ * Methods:
+ *
+ *     - void FK( const MatrixQ& Q, MatrixTi& T) const;
+ *       Computes the forward kinematics of the manipulator for a given set of joint angles.
+ *       Result is stored in a Matrix<double,DOF*4,4> matrix, with each frame transform
+ *       stacked vertically ontop of each other.
+ *
+ *     - void FKn( const MatrixQ& Q, Matrix4d& T) const;
+ *       Computes the forward kinematics for a given set of joint angles, but only returns
+ *       the final frame as a Matrix<double,4,4>.
+ *
+ *     - void jacobian( MatrixTi& T, MatrixJ& J) const;
+ *       Computes the geometric jacobian of the manipulator, based on the stacked forward
+ *       kinematics transforms given by the FK function.
+ *
+ *     - void hessianProduct( const MatrixJ& J, const MatrixQ& dQ, MatrixJ& A) const
+ *       Computes the product H*dQ, where H is the geometric hessian of the robot. This
+ *       function never computes H explicitely, and instead just reduces the computed values
+ *	     through multiplication as they are computed. The result is added to A.
+ *       Note, A must be pre-initialized with 0's before calling this function!
+ * 
+ * @date 2024-11-23
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 
 #pragma once
 
@@ -116,12 +118,16 @@ public:
 	Robot(
 		Array<double,DOF,4> _DH,
 		Vector<quik::JOINTTYPE_t,DOF> _linkTypes,
-		Vector<double,DOF> _Qsign,
+    	Vector<double,DOF> _Qsign = (DOF == -1 ? VectorXd::Ones(0) : VectorXd::Ones(DOF)),
 		Matrix4d _Tbase = Matrix4d::Identity(4,4),
 		Matrix4d _Ttool = Matrix4d::Identity(4,4))
 		: DH(_DH), linkTypes(_linkTypes), Qsign(_Qsign), Tbase(_Tbase), Ttool(_Ttool)
 	{
 		this->dof = (int) this->DH.rows();
+
+		// Handle case where DOF is Dynamic, and Qsign isn't given
+		if(this->Qsign.size()==0) this->Qsign = VectorXd::Ones(this->dof);
+
 		if(this->DH.cols() != 4) throw std::runtime_error("DH must be a DOFx4 matrix");
 		if(this->linkTypes.size() != this->dof) throw std::runtime_error("linkTypes must be the same size as the DH matrix has rows.");
 		if(this->Qsign.size() != this->dof) throw std::runtime_error("Qsign must be the same size as the DH matrix has rows.");
@@ -411,6 +417,23 @@ public:
 			} // end of outer for loop
 		} // end of branched if
 	} // end of hessianProduct()
+
+	/**
+	 * @brief Returns a length that is characteristic of the robot.
+	 * Found by summing the pythagorian distance of each link
+	 * e.g. sum( sqrt(a_i^2 + d_i^2 ))
+	 * 
+	 * This quantity can be useful for ensuring that inverse kinematics quantities
+	 * are appropriately scaled.
+	 * 
+	 * @return double 
+	 */
+	double characteristicLength() const
+	{
+		Vector<double,DOF> a = DH.col(0);
+		Vector<double,DOF> d = DH.col(2);
+		return (a.array().square() + d.array().square()).sqrt().sum();
+	}
 
 }; // End of class definition quik::Robot
 

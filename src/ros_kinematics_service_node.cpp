@@ -1,3 +1,20 @@
+/**
+ * @file ros_kinematics_service_node.cpp
+ * @author Steffan Lloyd (steffan.lloyd@nibio.no)
+ * @brief This code defines a ROS2 service server for kinematic purposes (forward/inverse kinematics,
+ * and jacobian calls). The services are defined on /fk_service, /ik_service, and /jacobian_service
+ * respectively. Note that calling kinematics functions through service calls can be convenient,
+ * however it will be slower than just using the CPP functions directly since the ROS2 service call
+ * system typically adds about a millisecond of overhead onto any single call. But, if this is tolerable
+ * for your application, this can be a convenient way of allowing kinematic operations from both python
+ * and C++ nodes.
+ * 
+ * Sample client nodes are available in src/sample_ros_client_node.cpp (c++) and 
+ * python/sample_quik_client_node.py (python). 
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #include "rclcpp/rclcpp.hpp"
 #include "quik/srv/ik_service.hpp"
 #include "quik/srv/fk_service.hpp"

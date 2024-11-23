@@ -1,51 +1,68 @@
-//
-//  IKSolver.hpp
-//  QuIK
-//
-// IKSOLVER Builds a structure that has the parameters and methods to solve inverse kinematics
-//
-// The key parameters:
-//
-//       * max_iterations [int]: Maximum number of iterations of the
-//           algorithm. Default: 100
-//       * algorithm [ALGORITHM_t]: The algorithm to use
-//           ALGORITHM_QUIK - QuIK
-//           ALGORITHM_NR - Newton-Raphson or Levenberg-Marquardt
-//           ALGORITHM_BFGS - BFGS
-//           Default: ALGORITHM_QUIK.
-//       * exit_tolerance [double]: The exit tolerance on the norm of the
-//           error. Default: 1e-12.
-//       * minimum_step_size [double]: The minimum joint angle step size
-//           (normed) before the solver exits. Default: 1e-14.
-//       * relative_improvement_tolerance [double]: The minimum relative
-//           iteration-to-iteration improvement. If this threshold isn't
-//           met, a counter is incremented. If the threshold isn't met
-//           [max_consecutive_grad_fails] times in a row, then the algorithm exits.
-//           For example, 0.05 represents a minimum of 5// relative
-//           improvement. Default: 0.05.
-//       * max_consecutive_grad_fails [int]: The maximum number of relative
-//           improvement fails before the algorithm exits. Default:
-//           20.
-//       * lambda_squared [double]: The square of the damping factor, lambda.
-//           Only applies to the NR and QuIK methods. If given, these
-//           methods become the DNR (also known as levenberg-marquardt)
-//           or the DQuIK algorithm. Ignored for BFGS algorithm.
-//           Default: 0.
-//       * max_linear_step_size [double]: An upper limit of the error step
-//           in a single step. Ignored for BFGS algorithm. Default: 0.3.
-//       * max_angular_step_size [double]: An upper limit of the error step
-//           in a single step. Ignored for BFGS algorithm. Default: 1.
-//       * armijo_sigma [double]: The sigma value used in armijo's
-//           rule, for line search in the BFGS method. Default: 1e-5
-//       * armijo_beta [double]: The beta value used in armijo's
-//           rule, for line search in the BFGS method. Default: 0.5
-//
-//  Created by Steffan Lloyd on 2024-10-26.
+/**
+ * @file IKSolver.hpp
+ * @author Steffan Lloyd (steffan.lloyd@nibio.no)
+ * @brief IKSOLVER Builds a structure that has the parameters and methods to solve inverse kinematics
+ * 
+ * The key parameters:
+ *      - max_iterations [int]: Maximum number of iterations of the
+ *        algorithm. Default: 100
+ *      - algorithm [ALGORITHM_t]: The algorithm to use
+ *        ALGORITHM_QUIK - QuIK
+ *        ALGORITHM_NR - Newton-Raphson or Levenberg-Marquardt
+ *        ALGORITHM_BFGS - BFGS
+ *        Default: ALGORITHM_QUIK.
+ *      - exit_tolerance [double]: The exit tolerance on the norm of the
+ *        error. Default: 1e-12.
+ *      - minimum_step_size [double]: The minimum joint angle step size
+ *        (normed) before the solver exits. Default: 1e-14.
+ *      - relative_improvement_tolerance [double]: The minimum relative
+ *        iteration-to-iteration improvement. If this threshold isn't
+ *        met, a counter is incremented. If the threshold isn't met
+ *        [max_consecutive_grad_fails] times in a row, then the algorithm exits.
+ *        For example, 0.05 represents a minimum of 5// relative
+ *        improvement. Default: 0.05.
+ *      - max_consecutive_grad_fails [int]: The maximum number of relative
+ *        improvement fails before the algorithm exits. Default:
+ *        20.
+ *      - lambda_squared [double]: The square of the damping factor, lambda.
+ *        Only applies to the NR and QuIK methods. If given, these
+ *        methods become the DNR (also known as levenberg-marquardt)
+ *        or the DQuIK algorithm. Ignored for BFGS algorithm.
+ *        Default: 0.
+ *      - max_linear_step_size [double]: An upper limit of the error step
+ *        in a single step. Ignored for BFGS algorithm. Default: 0.3.
+ *      - max_angular_step_size [double]: An upper limit of the error step
+ *        in a single step. Ignored for BFGS algorithm. Default: 1.
+ *      - armijo_sigma [double]: The sigma value used in armijo's
+ *        rule, for line search in the BFGS method. Default: 1e-5
+ *      - armijo_beta [double]: The beta value used in armijo's
+ *        rule, for line search in the BFGS method. Default: 0.5
+ * 
+ * Key methods defined are documented below, but are:
+ *     - quik::IKSolver::IK(Twt, Q0, Q_star, e_star, iter, breakReason): Computes
+ *       the inverse kinematics for a single pose, given as a homogeneous transform.
+ *     - quik::IKSolver::IK(Twt, Q0, Q_star, e_star, iter, breakReason): Computes
+ *       the inverse kinematics for a single pose, given as a homogeneous transform.
+ *       This syntax accepts an array of transforms as input, and outputs an array 
+ *       of angles.
+ *     - quik::IKSolver::IK(quat, d, Q0, Q_star, e_star, iter, breakReason): Computes
+ *       the inverse kinematics for a single pose, given as a quaternion quat and point d.
+ *     - quik::IKSolver::IK(quat, d, Q0, Q_star, e_star, iter, breakReason): Computes
+ *       the inverse kinematics for a single pose, given as a quaternion quat and point d.
+ *       This syntax accepts an array of transforms as input, and outputs an array 
+ *       of angles.
+ *     - printOptions(): Displays the options of the current object.
+ * 
+ * @date 2024-11-23
+ * 
+ * @copyright Copyright (c) 2024
+ */
 
 #pragma once
 
 #include <memory>
 #include <iostream>
+#include <cmath>
 #include "Eigen/Dense"
 #include "quik/Robot.hpp"
 #include "quik/geometry.hpp"
@@ -151,7 +168,9 @@ public:
 	double lambda_squared;
 
     // @brief max_linear_step_size [double]: An upper limit of the error step
-    // in a single step. Ignored for BFGS algorithm. Default: 0.3.
+    // in a single step. Ignored for BFGS algorithm. 
+    // Give a negative value to compute it automatically from the characteristic 
+    // length of the robot. Default: 0.33 * Robot.characteristicLength().
 	double max_linear_step_size;
 
     // @brief max_angular_step_size [double]: An upper limit of the error step
@@ -178,7 +197,7 @@ public:
         int _max_consecutive_grad_fails = 5,
         int _max_gradient_fails = 20,
         double _lambda_squared = 0,
-        double _max_linear_step_size = .34,
+        double _max_linear_step_size = -1,
         double _max_angular_step_size = 1,
         double _armijo_sigma = 1e-5,
         double _armijo_beta = 0.5 )
@@ -196,6 +215,21 @@ public:
             armijo_sigma(_armijo_sigma),
             armijo_beta(_armijo_beta)
     {
+
+        if(this->max_linear_step_size <= 0){
+            // Automatically compute the best step size from the robot characteristic length
+            this->max_linear_step_size = 0.33 * this->R->characteristicLength();
+        }
+        if(this->max_linear_step_size < 0.05 * this->R->characteristicLength()){
+            cout << "Warning! The provided max_linear_step_size is very small." << endl <<
+                "The recommended value of max_linear_step_size is 33% of Robot.charactersisticLength(). " <<
+                "The provided value of " << this->max_linear_step_size << " is " <<
+                this->max_linear_step_size/this->R->characteristicLength()*100 <<
+                "% instead. This is very small and will significantly impact the " <<
+                "algorithm performance. Recommend to increase it or leave it to be " <<
+                "automatically computed." << endl;
+        }
+
         // Input checking
 		if(this->max_iterations <= 0) throw std::runtime_error("max_iterations must be positive and nonzero!");
 		if(this->exit_tolerance <= 0) throw std::runtime_error("exit_tolerance must be a positive number!");
@@ -504,8 +538,8 @@ public:
         if(Twt.rows() != 4*N) throw std::runtime_error("Number of rows in Twt should be 4*N (where N is the number of poses to solve).");
         if(Q_star.cols() != N) throw std::runtime_error("Q_star must be a <DOFxN> matrix (where N is the number of poses to solve).");
         if(e_star.cols() != N) throw std::runtime_error("e_star must be a <6xN> matrix (where N is the number of poses to solve).");
-        if(iter.size() != N) throw std::runtime_error("iter must be a <6xN> matrix (where N is the number of poses to solve).");
-        if(breakReason.size() != N) throw std::runtime_error("breakReason must be a <6xN> matrix (where N is the number of poses to solve).");
+        if(static_cast<int>(iter.size()) != N) throw std::runtime_error("iter must be a <6xN> matrix (where N is the number of poses to solve).");
+        if(static_cast<int>(breakReason.size()) != N) throw std::runtime_error("breakReason must be a <6xN> matrix (where N is the number of poses to solve).");
 
         // Start iterations over poses to solve
         for (int i = 0; i < N; i++){

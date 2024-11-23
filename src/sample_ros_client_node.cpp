@@ -1,3 +1,14 @@
+/**
+ * @file sample_ros_client_node.cpp
+ * @author Steffan Lloyd (steffan.lloyd@nibio.no)
+ * @brief The file contains a sample ROS2 node for calling the kinematics service defined in this package.
+ * Note, calling kinematics functions in this way is much slower than running them just directly in the
+ * code (as shown in sample_ros_cpp_node.cpp), since the ROS service system adds about a millisecond of
+ * overhead onto the process. But if this doesn't matter for your application, then definitely use it!
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #include "rclcpp/rclcpp.hpp"
 #include "quik/srv/fk_service.hpp"
 #include "quik/srv/ik_service.hpp"

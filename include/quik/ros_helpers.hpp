@@ -45,10 +45,75 @@ namespace ros_helpers{
  * - Tbase: A 4x4 homogeneous transform representing the transform from the world frame to the base joint of the robot
  * - TtoolA A 4x4 homogeneous transform represeting the transform from the last frame to the tool frame. 
  * 
+ * @tparam DOF The degree of freedom of the robot. Defaults to Dynamic if not provided.
  * @param node The node to draw parameters from
  * @return quik::Robot<Dynamic> 
  */
-quik::Robot<Dynamic> robotFromNodeParameters(rclcpp::Node& node);
+// template<int DOF=Dynamic>
+// quik::Robot<DOF> robotFromNodeParameters(rclcpp::Node& node);
+template<int DOF=Dynamic>
+quik::Robot<DOF> robotFromNodeParameters(rclcpp::Node& node)
+{
+    // Define some helper functions
+    // Function to parse parameter into a Matrix4d
+    auto parseMatrix4d_ = [](const std::vector<double>& values) {
+        if (values.size() != 16) throw std::runtime_error("Invalid size for 4x4 matrix");
+        Matrix4d matrix;
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                matrix(i, j) = values[i * 4 + j];
+            }
+        }
+        return matrix;
+    };
+
+    // Declare parameters for and build robot
+    std::vector<double> dh_param = node.declare_parameter("dh", std::vector<double>{-1.0});
+    std::vector<std::string> link_types_str = node.declare_parameter("link_types", std::vector<std::string>{"invalid"});
+    std::vector<double> q_sign_double = node.declare_parameter("q_sign", std::vector<double>{-1.0});
+    Matrix4d Tbase = parseMatrix4d_(node.declare_parameter("Tbase", std::vector<double>{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}));
+    Matrix4d Ttool = parseMatrix4d_(node.declare_parameter("Ttool", std::vector<double>{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}));
+
+    // Check if parameters are still at their default (invalid) values
+    if (dh_param.size() == 1 && dh_param[0] == -1.0)
+        RCLCPP_ERROR(node.get_logger(), "Parameter 'dh' has not been set.");
+    
+    int dof = dh_param.size()/4;
+    // Check that templated size matches dof
+    if(DOF>0 && DOF!=dof)
+        RCLCPP_ERROR(node.get_logger(), "Warning: Could not load robot, config file contains the wrong number of DOF %d compared to the compiled template size %d.", dof, DOF);
+
+    if (link_types_str.size() == 1 && link_types_str[0] == "invalid")
+        RCLCPP_ERROR(node.get_logger(), "Parameter 'link_types' has not been set.");
+    if (static_cast<int>(q_sign_double.size()) == 1 && q_sign_double[0] == -1.0){
+        RCLCPP_INFO(node.get_logger(), "Parameter 'q_sign' not provided. Assuming all links use positive direction.");
+        q_sign_double = std::vector<double>(dof, 1.0);
+    }
+    if (static_cast<int>(q_sign_double.size()) != static_cast<int>(link_types_str.size())
+        || static_cast<int>(q_sign_double.size()) != dof)
+        RCLCPP_ERROR(node.get_logger(), "DH, q_sign and linktype variables don't have congruent sizing");
+
+    // Get Robot and IKSolver arguments, parse them into Eigen objects
+    // DH Parameters
+    Matrix<double, DOF, 4> DH = Map<Matrix<double, 4, DOF>>(dh_param.data(), 4, dof).transpose();
+
+    // Link types
+    std::vector<quik::JOINTTYPE_t> link_types_data;
+    for (const auto& lt : link_types_str) link_types_data.push_back( quik::str2jointtype(lt)); // Convert from string to JOINTTYPE_t
+    Vector<quik::JOINTTYPE_t,DOF> link_types = Map<Vector<quik::JOINTTYPE_t,DOF>, Unaligned>(link_types_data.data(), link_types_data.size());
+
+    // Q sign
+    Vector<double,DOF> q_sign = Eigen::Map<VectorXd>(q_sign_double.data(), q_sign_double.size());
+
+    // Build robot
+    return quik::Robot<DOF>(
+        DH,
+        link_types,
+        q_sign,
+        Tbase,
+        Ttool);
+}
+
 
 /**
  * @brief Parses an IKSolver from node parameters:
@@ -86,13 +151,38 @@ quik::Robot<Dynamic> robotFromNodeParameters(rclcpp::Node& node);
  *   * armijo_beta [double]: The beta value used in armijo's
  *       rule, for line search in the BFGS method. Default: 0.5
  * 
+ * @tparam DOF The degree of freedom of the robot. Defaults to Dynamic if not provided.
  * @param node The node (passed as reference)
  * @param R The robot object (shared pointer)
  * @return quik::IKSolver<Dynamic> 
  */
-quik::IKSolver<Dynamic> IKSolverFromNodeParameters(
+// template<int DOF=Dynamic>
+// quik::IKSolver<DOF> IKSolverFromNodeParameters(
+//     rclcpp::Node& node,
+//     const std::shared_ptr<quik::Robot<DOF>> R);
+template<int DOF=Dynamic>
+quik::IKSolver<DOF> IKSolverFromNodeParameters(
     rclcpp::Node& node,
-    const std::shared_ptr<quik::Robot<Dynamic>> R);
+    const std::shared_ptr<quik::Robot<DOF>> R)
+{
+    return quik::IKSolver<DOF>(
+        R,
+        node.declare_parameter("max_iterations", 200),
+        quik::str2algorithm(node.declare_parameter("algorithm", "ALGORITHM_QUIK")),
+        node.declare_parameter("exit_tolerance", 1e-12),
+        node.declare_parameter("minimum_step_size", 1e-14),
+        node.declare_parameter("relative_improvement_tolerance", 0.05),
+        node.declare_parameter("max_consecutive_grad_fails", 10),
+        node.declare_parameter("max_gradient_fails", 80),
+        node.declare_parameter("lambda_squared", 1e-10),
+        node.declare_parameter("max_linear_step_size", -1.0),
+        node.declare_parameter("max_angular_step_size", 1.0),
+        node.declare_parameter("armijo_sigma", 1e-5),
+        node.declare_parameter("armijo_beta", 0.5)
+    );
+
+}
+
 
 /**
  * @brief Handles the inverse kinematics service requests

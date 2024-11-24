@@ -1,18 +1,33 @@
-# QuIK: A faster and more robust inverse kinematics library for ROS2
+# QuIK: An ultra-fast and highly robust kinematics library for C++ and ROS2 using DH parameters
 
-QuIK is a highly efficient C++ kinematics library for serial manipulators. It is based on the novel QuIK algorithm, [published in IEEE-TRO](http://dx.doi.org/10.1109/TRO.2022.3162954), that uses 3rd-order velocity kinematics to solve generalized inverse kinematics significantly faster, and significantly more reliably that existing inverse kinematics packages.
+QuIK is a hyper-efficient C++ kinematics library for serial manipulators. It is based on the novel QuIK algorithm, [published in IEEE-TRO](http://dx.doi.org/10.1109/TRO.2022.3162954), that uses 3rd-order velocity kinematics to solve generalized inverse kinematics significantly faster, and significantly more reliably that existing inverse kinematics packages. QuIK uses the Denevit-Hartenberg convention for kinematics, which is readily available for most manipulators and results in a more computationally efficient formulation of kinematics.
+
+Some key benchmarks over other available solvers:
 
 | Solver         | Mean Solution Time | Error Rate |
 | -------------- | ------------------ | ---------- |
 | QuIK           | 21 μs              | 0.13%      |
-| KDL            | 148 μs (x 7)       | 5.3% (x 40)|
-| Matlab         | 670 μs (x 32)      | 1.1% (x 9) |
+| KDL (used in ROS, and primary base solver in TracIK)            | 148 μs (x7)       | 5.3% (x40)|
+| Matlab Robotics Toolbox        | 670 μs (x32)      | 1.1% (x9) |
 
 These benchmarks were published in the IEEE-TRO paper, and further details about them can be found there. A preprint of this paper is included in this repository:  [SLloydEtAl2022_QuIK_preprint.pdf](SLloydEtAl2022_QuIK_preprint.pdf).
 
 > S. Lloyd, R. Irani, and M. Ahmadi, "Fast and Robust Inverse Kinematics for Serial Robots using Halley’s Method," IEEE Transactions on Robotics, vol. 38, no. 5, pp. 2768–2780, Oct. 2022. doi: [10.1109/TRO.2022.3162954](http://dx.doi.org/10.1109/TRO.2022.3162954). A preprint of this paper can be found in the current repository, [SLloydEtAl2022_QuIK_preprint.pdf](SLloydEtAl2022_QuIK_preprint.pdf).
 
 This repository includes the code to use the QuIK algorithm in ROS2, or just in C++ in general. Examples are given in python as well.
+
+## What this repository does and does not do
+
+This repository allows for highly efficient robot kinematics, and in particular inverse kinematics. It is designed for serial manipulators, i.e. manipulators with a single kinematic chain that does not branch. 
+
+ - Highly efficient and robust inverse kinematics against 6-DOF constraints in world frame. E.g. a target tool point and rotation is specified, and joint angles are returned.
+ - Forward kinematics
+ - Velocity kinematics/Jacobian computation
+
+It does not do:
+ - [_Planned_] Null space optimization for robots with more than 6 joints. The code works perfectly for higher-order chains, but will only return "a" solution, not necessarily a solution which is optimal. 
+ - [_Planned_] Reduced-order or transformed constraints, where you perhaps care about the tool point, but not rotation, or other combinations thereof.
+ - [_Planned_] Feasibility checks. This code base does not check the computed solutions against joint limits, or check whether the target pose can be reached within the robot's speed and acceleration limits.
 
 ## How to build
 
@@ -25,9 +40,28 @@ colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 The main C++ code is stored in `include/quik` and `src`. The code can be used directly in your C++ projects, or in C++ ros nodes, or by building and running the provided kinematics service node (see below).
 
+**Core QuIK functionality**:
+ - `include/quik/Robot.hpp`: Defines the `quik::Robot` class and forward kinematic/jacobian functions.
+ - `include/quik/IKSolver.hpp`: Defines the `quik::IKSolver` class and associated inverse kinematics functions.
+ - `include/quik/geometry.hpp` and `src/geometry.cpp`: Defines the `quik::geometry` namespace, which includes a number of functions for transforming from twists to homogeneous transforms to quaternion/point representations, etc.
+ - `include/quik/utilities.hpp`: Defines the `quik::utilities` namespace, which includes some non-kinematic helper functions.
+
+**ROS2 code**
+ - `include/quik/ros_helpers.hpp` and `src/ros_helpers.cpp`: Defines helper functions for using QuIK in ROS, such as service handlers for forward/inverse/velocity kinematics, as well as helper functions for forming and parsing service requests.
+ - `src/ros_kinematics_service_node.cpp`: A ROS2 node that defines services for forward, inverse, and velocity kinematics.
+
+**Example code**
+ - `src/sample_cpp_usage.cpp`: A simple demo showing how the codebase can be used (ROS-indenpendent).
+ - `src/sample_ros_client_node.cpp`: A sample client node for the service server node provided.
+ - `src/sample_ros_cpp_node.cpp`: A simple demo of using the QuIK codebase in a ROS node (directly, without using the service node).
+
+**Python code**
+ - `python/sample_quik_client_node.py`: A sample python node that calls the kinematics service node provided.
+ - `python/quik_service_helpers.py`: A python module that defines helper functions for forming and parsing service requests from the service node.
+
 ### Basic Usage
 
-This library does not use URDF like many ROS packages; instead, it builds the robot structure using Denevit-Hartenburg (DH) convention. The DH table is a method to describe the geometry of a robot or a kinematic chain. It uses four parameters - `a`, `alpha`, `d`, and `theta` - to define the spatial relationship between adjacent links in the chain.
+This library does not use URDF like many ROS packages; instead, it builds the robot structure using Denevit-Hartenburg (DH) convention. The DH table is a method to describe the geometry of a robot or a kinematic chain. It uses four parameters - `a`, `alpha`, `d`, and `theta` - to define the spatial relationship between adjacent links in the chain. More information on the DH convention [here](https://users.cs.duke.edu/~brd/Teaching/Bio/asmb/current/Papers/chap3-forward-kinematics.pdf) or [here](https://spart.readthedocs.io/en/latest/DH.html).
 
 #### The ``quik::Robot`` class
 
@@ -56,12 +90,12 @@ For example, the following code would define the KUKA KR6 manipulator:
 ```c++
 // Given as DOFx4 table, in the following order: a_i, alpha_i, d_i, theta_i.
 Matrix<double, 6, 4> DH;
-DH << 1./40,	-M_PI/2, 	183./1000,	0,
-      -63./200,	0,        	0,			0,
-      -7./200,	M_PI/2,		0,			0,
-      0,			-M_PI/2,	73./200,	0,
-      0,  		M_PI/2,		0,			0,
-      0,  		0,			2./25,		0;
+DH << 0.025,    -M_PI/2,   0.183,       0,
+      -0.315,   0,         0,           0,
+      -0.035,   M_PI/2,    0,           0,
+      0,        -M_PI/2,   0.365,       0,
+      0,        M_PI/2,    0,           0,
+      0,        0,         0.08,        0;
 
 // Second argument is a list of joint types
 Vector<quik::JOINTTYPE_t,6> linkTypes;
@@ -149,6 +183,10 @@ Running the sample client:
 ros2 run quik sample_ros_client_node --ros-args --params-file ./src/quik/config/ik_service_kuka_kr6.yaml
 ```
 
+### YAML Config Files
+
+To do, description of parameters and sample ones
+
 ### Python Clients
 
 To do.
@@ -156,3 +194,12 @@ To do.
 ## Requirements
 All functions rely on the [Eigen 3.4](https://eigen.tuxfamily.org) linear algebra library, so you will also need to link to an appropriate library.
 
+## Citations
+
+If you use our work, please reference our publication below. Recommended citation:
+
+[1] [S. Lloyd, R. A. Irani, and M. Ahmadi, “Fast and Robust Inverse Kinematics of Serial Robots Using Halley’s Method,” IEEE Transactions on Robotics, vol. 38, no. 5, pp. 2768–2780, Oct. 2022.](SLloydEtAl2022_QuIK_preprint.pdf) doi: [10.1109/TRO.2022.3162954](http://dx.doi.org/10.1109/TRO.2022.3162954).
+
+## Commercial Licensing
+
+To do. Can do it, but it costs money. Contact me.

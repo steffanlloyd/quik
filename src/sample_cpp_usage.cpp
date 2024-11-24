@@ -26,12 +26,12 @@ using namespace Eigen;
 auto R = std::make_shared<quik::Robot<6>>(
 	// Given as DOFx4 table, in the following order: a_i, alpha_i, d_i, theta_i.
 	(Matrix<double, 6, 4>() <<
-	  1./40,	-M_PI/2, 	183./1000,	0,
-	 -63./200,	0,        	0,			0,
-	 -7./200,	M_PI/2,		0,			0,
-	 0,			-M_PI/2,	73./200,	0,
-	 0,  		M_PI/2,		0,			0,
-	 0,  		0,			2./25,		0).finished(),
+		0.025,    -M_PI/2,   0.183,       0,
+		-0.315,   0,         0,           0,
+		-0.035,   M_PI/2,    0,           0,
+		0,        -M_PI/2,   0.365,       0,
+		0,        M_PI/2,    0,           0,
+		0,        0,         0.08,        0).finished(),
 					  
 	// Second argument is a list of joint types
 	// true is prismatic, false is revolute

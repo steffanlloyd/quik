@@ -20,6 +20,9 @@
 #include "quik/utilities.hpp"
 #include <chrono>
 
+// Define DOF at compile time for more speed and no dynamic memory allocation
+constexpr int DOF=6;
+
 using namespace Eigen;
 using namespace std;
 
@@ -29,12 +32,15 @@ public:
     SampleCPPUsageNode() : Node("sample_cpp_usage_node")
     {
         // Parse robot parameters, build robot and assign it to this->R
-        this->R = std::make_shared<quik::Robot<Dynamic>>(quik::ros_helpers::robotFromNodeParameters(*this));
+        // Note that robotFromNodeParameters is templated with DOF=6 to result in a fixed-size robot.
+        // The YAML file must now contain a DOF=6 robot, otherwise an error will be triggered.
+        this->R = std::make_shared<quik::Robot<DOF>>(quik::ros_helpers::robotFromNodeParameters<DOF>(*this));
         RCLCPP_INFO(this->get_logger(), "Loaded robot successfully. Robot configuration is:");
         this->R->print();
 
         // Build IKSolver and declare parameters
-        this->IKS = std::make_shared<quik::IKSolver<Dynamic>>(quik::ros_helpers::IKSolverFromNodeParameters(*this, this->R));
+        // IKSolver in this case must also be templated with DOF=6.
+        this->IKS = std::make_shared<quik::IKSolver<DOF>>(quik::ros_helpers::IKSolverFromNodeParameters<DOF>(*this, this->R));
           RCLCPP_INFO(this->get_logger(), "Built IKSolver object. Configuration is:");
         this->IKS->printOptions();
 
@@ -46,14 +52,14 @@ public:
         RCLCPP_INFO(this->get_logger(), "Set up kinematics loop to run every 5 seconds.");
     }
 
-    std::shared_ptr<quik::IKSolver<Dynamic>> IKS;
-    std::shared_ptr<quik::Robot<Dynamic>> R;
+    std::shared_ptr<quik::IKSolver<DOF>> IKS;
+    std::shared_ptr<quik::Robot<DOF>> R;
 
 private:
     void timer_callback()
     {
         // Generate a random pose
-        VectorXd q = VectorXd::Random(this->R->dof);
+        Vector<double,DOF> q = VectorXd::Random(this->R->dof);
         RCLCPP_INFO(this->get_logger(), "Random joint angles generated:\n%s",
                 quik::utilities::eigen2str(q.transpose()).c_str());
 
@@ -66,19 +72,19 @@ private:
             quik::utilities::eigen2str(d.transpose()).c_str());
 
         // Run jacobian
-        Matrix<double, 6, Dynamic> J(6, R->dof);
+        Matrix<double, 6, DOF> J(6, R->dof);
         this->R->jacobian(q, J);
             RCLCPP_INFO(this->get_logger(), "Got Jacobian result:\n%s\n",
                 quik::utilities::eigen2str(J).c_str());
 
         // Perturb initial joint angles
         double perturbation = .1;
-        VectorXd q_perturbed = q + VectorXd::Random(this->R->dof) * perturbation;
+        Vector<double,DOF> q_perturbed = q + Vector<double,DOF>::Random(this->R->dof) * perturbation;
         RCLCPP_INFO(this->get_logger(), "Joint angles perturbed to:\n%s",
             quik::utilities::eigen2str(q_perturbed.transpose()).c_str());
 
         // Run inverse kinematics
-        VectorXd q_star(IKS->R->dof);
+        Vector<double,DOF> q_star(IKS->R->dof);
         Vector<double,6> e_star;
         int iter;
         quik::BREAKREASON_t breakReason;

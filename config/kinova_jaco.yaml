@@ -1,0 +1,48 @@
+/**:
+    ros__parameters:
+        # IKSolver parameters
+        # Can just leave commented out to use defaults, or 
+        # uncomment to specify an assumed value.
+        # max_iterations: 200
+        # algorithm: ALGORITHM_QUIK
+        # exit_tolerance: 1e-12
+        # minimum_step_size: 1e-14
+        # relative_improvement_tolerance: 0.05
+        # max_consecutive_grad_fails: 10
+        # max_gradient_fails: 80
+        # lambda_squared: 1e-10
+        # max_linear_step_size: 0.34
+        # max_linear_step_size: 0.001
+        # max_angular_step_size: 1.0
+        # armijo_sigma: 1.0e-5
+        # armijo_beta: 0.5
+
+        # Robot parameters
+        # DH table (order a_i, alpha_i, d_i, theta_i)
+        dh: [0.0,   1.5707963268,   0.2755,     0.0,
+            0.41,   3.1415926536,   0.0,        0.0, 
+            0.0,    1.5707963268,   -0.0098,    0.0,
+            0.0,    2.0943951024,   -0.2814,    0.0,
+            0.0,    2.0943951024,   -0.1482,    0.0,
+            0.0,    3.1415926536,   -0.2341,    0.0]
+
+        # Link types (JOINT_REVOLUTE or JOINT_PRISMATIC)
+        link_types: [JOINT_REVOLUTE, JOINT_REVOLUTE, JOINT_REVOLUTE, JOINT_REVOLUTE, JOINT_REVOLUTE, JOINT_REVOLUTE]
+        
+        # q_sign (1 or -1). Inverts the "positive" direction of motion of the joint.
+        # Optional, defaults to an array of ones (normal positive directions)
+        # q_sign: [1., 1., 1., 1., 1., 1.]
+
+        # Tbase transform, between the world frame and the base of the robot.
+        # Optional, defaults to identity.
+        # Tbase: [1., 0., 0., 0., 
+        #         0., 1., 0., 0., 
+        #         0., 0., 1., 0., 
+        #         0., 0., 0., 1.]
+
+        # Ttool transform, between the last frame of the robot and the tool frame.
+        # Optional, defaults to the identity.
+        # Ttool: [1., 0., 0., 0., 
+        #         0., 1., 0., 0., 
+        #         0., 0., 1., 0., 
+        #         0., 0., 0., 1.]

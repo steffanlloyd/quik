@@ -2,13 +2,15 @@
 
 QuIK is a hyper-efficient C++ kinematics library for serial manipulators. It is based on the novel QuIK algorithm, [published in IEEE-TRO](http://dx.doi.org/10.1109/TRO.2022.3162954), that uses 3rd-order velocity kinematics to solve generalized inverse kinematics significantly faster, and significantly more reliably that existing inverse kinematics packages. QuIK uses the Denevit-Hartenberg convention for kinematics, which is readily available for most manipulators and results in a more computationally efficient formulation of kinematics.
 
-Some key benchmarks over other available solvers:
+Some key benchmarks over other available solvers, on a sample 6-DOF manipulator with large initial joint error:
 
 | Solver         | Mean Solution Time | Error Rate |
 | -------------- | ------------------ | ---------- |
 | QuIK           | 21 μs              | 0.13%      |
 | KDL (used in ROS, and primary base solver in TracIK)            | 148 μs (x7)       | 5.3% (x40)|
 | Matlab Robotics Toolbox        | 670 μs (x32)      | 1.1% (x9) |
+
+When the initial guess is good (close to the true answer), the error rate goes to nearly zero and the solution time decreases significantly.
 
 These benchmarks were published in the IEEE-TRO paper, and further details about them can be found there. A preprint of this paper is included in this repository:  [docs/SLloydEtAl2022_QuIK_preprint.pdf](docs/SLloydEtAl2022_QuIK_preprint.pdf).
 

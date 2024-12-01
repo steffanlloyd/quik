@@ -10,9 +10,9 @@ Some key benchmarks over other available solvers:
 | KDL (used in ROS, and primary base solver in TracIK)            | 148 μs (x7)       | 5.3% (x40)|
 | Matlab Robotics Toolbox        | 670 μs (x32)      | 1.1% (x9) |
 
-These benchmarks were published in the IEEE-TRO paper, and further details about them can be found there. A preprint of this paper is included in this repository:  [SLloydEtAl2022_QuIK_preprint.pdf](SLloydEtAl2022_QuIK_preprint.pdf).
+These benchmarks were published in the IEEE-TRO paper, and further details about them can be found there. A preprint of this paper is included in this repository:  [docs/SLloydEtAl2022_QuIK_preprint.pdf](docs/SLloydEtAl2022_QuIK_preprint.pdf).
 
-> S. Lloyd, R. Irani, and M. Ahmadi, "Fast and Robust Inverse Kinematics for Serial Robots using Halley’s Method," IEEE Transactions on Robotics, vol. 38, no. 5, pp. 2768–2780, Oct. 2022. doi: [10.1109/TRO.2022.3162954](http://dx.doi.org/10.1109/TRO.2022.3162954). A preprint of this paper can be found in the current repository, [SLloydEtAl2022_QuIK_preprint.pdf](SLloydEtAl2022_QuIK_preprint.pdf).
+> S. Lloyd, R. Irani, and M. Ahmadi, "Fast and Robust Inverse Kinematics for Serial Robots using Halley’s Method," IEEE Transactions on Robotics, vol. 38, no. 5, pp. 2768–2780, Oct. 2022. doi: [10.1109/TRO.2022.3162954](http://dx.doi.org/10.1109/TRO.2022.3162954). A preprint of this paper can be found in the current repository, [docs/SLloydEtAl2022_QuIK_preprint.pdf](docs/SLloydEtAl2022_QuIK_preprint.pdf).
 
 This repository includes the code to use the QuIK algorithm in ROS2, or just in C++ in general. Examples are given in python as well.
 
@@ -31,7 +31,7 @@ It does not do:
 
 ## How it works
 
-The QuIK repository is based on the QuIK algorith, the full details of which can be found in the paper [SLloydEtAl2022_QuIK_preprint.pdf](SLloydEtAl2022_QuIK_preprint.pdf). QuIK stands for the *Quick Inverse Kinematics* algorithm, which is a new algorithm for generalized inverse kinematics of serial kinematic chains that has been shown to be 1-2 orders of magnitude faster, and more robust (fails less) than other off-the-shelf algorithms.
+The QuIK repository is based on the QuIK algorith, the full details of which can be found in the paper [docs/SLloydEtAl2022_QuIK_preprint.pdf](docs/SLloydEtAl2022_QuIK_preprint.pdf). QuIK stands for the *Quick Inverse Kinematics* algorithm, which is a new algorithm for generalized inverse kinematics of serial kinematic chains that has been shown to be 1-2 orders of magnitude faster, and more robust (fails less) than other off-the-shelf algorithms.
 
 The key innovation in this work is the use of higher level derivatives in the iterative solver. Most current inverse kinematics solvers use the geometry Jacobian of the kinematic chain in a *damped Newton search*, where at each step the kinematics function of the robot is linearized about a point, and this linear estimate is used to project towards the correct solution. The novelty with the QuIK method is that it uses the first *and* second-order derivatives to approximate the robot's kinematics function as a quadratic curve, which is instead used to project towards the solution. This quadratic curve captures the function much more effectively than the linear estimate, leading to much faster convergence, and fewer cases of the algorithm diverging to an incorrect solution. This is visualized in the image below.
 
@@ -42,7 +42,7 @@ The plot below shows the histogram distribution of the normed kinematic error af
 
 ![Graph showing the convergence between the Newton-Raphson and QuIK algorithms](docs/convergence.png)
 
-Further details and benchmarks can be found in the paper: [SLloydEtAl2022_QuIK_preprint.pdf](SLloydEtAl2022_QuIK_preprint.pdf).
+Further details and benchmarks can be found in the paper: [docs/SLloydEtAl2022_QuIK_preprint.pdf](docs/SLloydEtAl2022_QuIK_preprint.pdf).
 
 ## How to build
 
@@ -324,7 +324,7 @@ All functions rely on the [Eigen 3.4](https://eigen.tuxfamily.org) linear algebr
 
 If you use our work, please reference our publication below. Recommended citation:
 
-[1] [S. Lloyd, R. A. Irani, and M. Ahmadi, “Fast and Robust Inverse Kinematics of Serial Robots Using Halley’s Method,” IEEE Transactions on Robotics, vol. 38, no. 5, pp. 2768–2780, Oct. 2022.](SLloydEtAl2022_QuIK_preprint.pdf) doi: [10.1109/TRO.2022.3162954](http://dx.doi.org/10.1109/TRO.2022.3162954).
+[1] [S. Lloyd, R. A. Irani, and M. Ahmadi, “Fast and Robust Inverse Kinematics of Serial Robots Using Halley’s Method,” IEEE Transactions on Robotics, vol. 38, no. 5, pp. 2768–2780, Oct. 2022.](docs/SLloydEtAl2022_QuIK_preprint.pdf) doi: [10.1109/TRO.2022.3162954](http://dx.doi.org/10.1109/TRO.2022.3162954).
 
 ## Commercial Licensing
 

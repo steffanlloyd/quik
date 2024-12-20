@@ -20,10 +20,11 @@
 
 using namespace std;
 using namespace Eigen;
+using namespace quik;
 
 // Define manipulator.
 // This is the DH parameters for the KUKA KR6 robot
-auto R = std::make_shared<quik::Robot<6>>(
+auto R = std::make_shared<Robot<6>>(
 	// Given as DOFx4 table, in the following order: a_i, alpha_i, d_i, theta_i.
 	(Matrix<double, 6, 4>() <<
 		0.025,    -M_PI/2,   0.183,       0,
@@ -36,8 +37,8 @@ auto R = std::make_shared<quik::Robot<6>>(
 	// Second argument is a list of joint types
 	// true is prismatic, false is revolute
 	// KUKA KR6 only has revolute joints
-	(Vector<quik::JOINTTYPE_t,6>() << 
-        quik::JOINT_REVOLUTE, quik::JOINT_REVOLUTE, quik::JOINT_REVOLUTE, quik::JOINT_REVOLUTE, quik::JOINT_REVOLUTE, quik::JOINT_REVOLUTE
+	(Vector<JointType_t,6>() << 
+        JOINT_REVOLUTE, JOINT_REVOLUTE, JOINT_REVOLUTE, JOINT_REVOLUTE, JOINT_REVOLUTE, JOINT_REVOLUTE
     ).finished(),
 
 	// Third agument is a list of joint directions
@@ -51,10 +52,11 @@ auto R = std::make_shared<quik::Robot<6>>(
 );
 
 // Define the IK options
-const quik::IKSolver<6> IKS(
+const IKSolver<6> IKS(
     R, // The robot object (pointer)
+	std::make_shared(new WorldConstraint()),
     200, // max number of iterations
-    quik::ALGORITHM_QUIK, // algorithm (ALGORITHM_QUIK, ALGORITHM_NR or ALGORITHM_BFGS)
+    ALGORITHM_QUIK, // algorithm (ALGORITHM_QUIK, ALGORITHM_NR or ALGORITHM_BFGS)
     1e-12, // Exit tolerance
     1e-14, // Minimum step tolerance
     0.05, // iteration-to-iteration improvement tolerance (0.05 = 5% relative improvement)
@@ -71,17 +73,17 @@ int main()
 	// Initilize variables
 	int N = 10; // Number of poses to generate
 	int DOF = R->dof;
-	Matrix<double,6,Dynamic>    Q(DOF, N),	    // True joint angles
-                                Q0(DOF, N),	    // Initial guess of joint angles
-                                Q_star(DOF, N);	// Solver's solution
-	Matrix<double,6,Dynamic>    e_star(6,N);	// Error at solver pose
-    std::vector<int>            iter(N);	    // Store number of iterations of algorithm
-	std::vector<quik::BREAKREASON_t>  breakReason(N);	// Store break out reason
-	Matrix4d                    T,		        // True forward kinematics transform
-		                        T_star;	        // Forward kinematics at solver solution
+	JointStateArray_t<6, Dynamic> 	Q(DOF, N),	    // True joint angles
+                                	Q0(DOF, N),	    // Initial guess of joint angles
+                                	Q_star(DOF, N);	// Solver's solution
+	TwistArray_t<Dynamic>   		e_star(6,N);	// Error at solver pose
+    std::vector<int>            	iter(N);	    // Store number of iterations of algorithm
+	std::vector<BreakReason_t>  	breakReason(N);	// Store break out reason
+	Hgt_t                    		T,		        // True forward kinematics transform
+		                        	T_star;	        // Forward kinematics at solver solution
 	
-	Matrix<double,Dynamic,4>    Tn(N*4,4); 	    // 4N * 4 matrix of vertically stacked transforms to be solved.
-							                    // This is just a convenient way of sending in an array of transforms.
+	HgtArray_t<Dynamic>    			Tn(N*4,4); 	    // 4N * 4 matrix of vertically stacked transforms to be solved.
+							                   		// This is just a convenient way of sending in an array of transforms.
 	
 	// Generate some random joint configurations for the robot
 	Q.setRandom(DOF, N);

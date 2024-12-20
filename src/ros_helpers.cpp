@@ -19,6 +19,7 @@
  */
 #include "quik/ros_helpers.hpp"
 #include "Eigen/Dense"
+#include "quik/types.hpp"
 #include "quik/IKSolver.hpp"
 #include "quik/Robot.hpp"
 #include "quik/geometry.hpp"
@@ -28,6 +29,7 @@
 #include "quik/srv/jacobian_service.hpp"
 
 using namespace Eigen;
+using namespace quik;
 
 namespace quik{
 namespace ros_helpers{
@@ -54,27 +56,27 @@ void ik_service_handler_(
     RCLCPP_DEBUG(LOGGER_IK, "Received request on /ik_service");
 
     // Parse request values
-    Vector4d quat(
+    Quaternion_t quat(
         request->target_pose.orientation.x,
         request->target_pose.orientation.y,
         request->target_pose.orientation.z,
         request->target_pose.orientation.w);
-    Vector3d d(
+    Point3_t d(
         request->target_pose.position.x,
         request->target_pose.position.y,
         request->target_pose.position.z);
 
-    Eigen::Map<Eigen::VectorXd> Q0(request->q_0.data(), request->q_0.size());
+    Eigen::Map<JointState_t<Dynamic>> Q0(request->q_0.data(), request->q_0.size());
     if(Q0.size() != IKS->R->dof){
         RCLCPP_WARN(LOGGER_IK, "Provided q_0 is the wrong size. Must be size equal to the robot DOF!");
         return;
     }
 
     // Init output variables
-    VectorXd Q_star(IKS->R->dof);
-    Vector<double,6> e_star;
+    JointState_t<Dynamic> Q_star(IKS->R->dof);
+    Twist_t e_star;
     int iter;
-    quik::BREAKREASON_t breakReason;
+    BreakReason_t breakReason;
 
     // Use the IK function
     auto startTime = chrono::high_resolution_clock::now();
@@ -86,7 +88,7 @@ void ik_service_handler_(
     for (int i = 0; i < e_star.size(); ++i) response->e_star[i] = e_star[i];
     response->iter = iter;
     response->break_reason = breakReason;
-    response->success = breakReason == quik::BREAKREASON_TOLERANCE;
+    response->success = breakReason == BREAKREASON_TOLERANCE;
 
     if(response->success){
         RCLCPP_INFO(LOGGER_IK, "Successfully processed IK request. Took %d iterations, break reason: %s, normed error is %.4g. Elapsed time: %.2f microseconds.",
@@ -112,7 +114,7 @@ void fk_service_handler_(
     const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<quik::srv::FKService::Request> request,
     const std::shared_ptr<quik::srv::FKService::Response> response,
-    const std::shared_ptr<quik::Robot<Dynamic>> R)
+    const std::shared_ptr<Robot<Dynamic>> R)
 {
     (void)request_header;
 
@@ -120,7 +122,7 @@ void fk_service_handler_(
     RCLCPP_DEBUG(LOGGER_FK, "Received request on /fk_service");
 
     // Convert the incoming joint angles to an Eigen Vector
-    Eigen::VectorXd Q = Eigen::VectorXd::Map(request->q.data(), request->q.size());
+    JointState_t<Dynamic> Q = Eigen::VectorXd::Map(request->q.data(), request->q.size());
     int frame = request->frame;
 
     // Check inputs
@@ -134,15 +136,15 @@ void fk_service_handler_(
     }
     
     // Create a 4x4 matrix to store the result
-    Eigen::Matrix4d T;
-    Vector<double, 4> quat;
-    Vector<double, 3> d;
+    Hgt_t T;
+    Quaternion_t quat;
+    Point3_t d;
 
     // Call the FKn function
     R->FKn(Q, T, frame);
 
     // Convert to quaternion and position
-    quik::geometry::hgt2quatpos(T, quat, d);
+    geometry::hgt2quatpos(T, quat, d);
 
     // Convert the result to a geometry_msgs::Pose message
     response->pose.position.x = d(0);
@@ -172,14 +174,14 @@ void jacobian_service_handler_(
     const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<quik::srv::JacobianService::Request> request,
     const std::shared_ptr<quik::srv::JacobianService::Response> response,
-    const std::shared_ptr<quik::Robot<Dynamic>> R)
+    const std::shared_ptr<Robot<Dynamic>> R)
 {
     (void)request_header;
 
     RCLCPP_DEBUG(LOGGER_JACOBIAN, "Received request on /jacobian_service");
 
     // Convert the incoming joint angles to an Eigen Vector
-    Eigen::VectorXd Q = Eigen::VectorXd::Map(request->q.data(), request->q.size());
+    JointState_t<Dynamic> Q = Eigen::VectorXd::Map(request->q.data(), request->q.size());
 
     // Check inputs
     if(Q.size() != R->dof){
@@ -188,7 +190,7 @@ void jacobian_service_handler_(
     }
     
     // Create a 4x4 matrix to store the result
-    Eigen::Matrix<double, 6, Dynamic> J(6, R->dof);
+    Jacobian_t<Dynamic> J(6, R->dof);
 
     // Call the jacobian function with the joint angle calling signature
     R->jacobian(Q, J);
@@ -207,7 +209,7 @@ void jacobian_service_handler_(
  * @param q The desired robot joint angles
  * @return std::shared_ptr<quik::srv::FKService::Request> 
  */
-std::shared_ptr<quik::srv::FKService::Request> fk_make_request(const Eigen::VectorXd& q)
+std::shared_ptr<quik::srv::FKService::Request> fk_make_request(const JointState_t<Dynamic>& q)
 {
     auto request = std::make_shared<quik::srv::FKService::Request>();
     for (int i=0; i<q.size(); ++i) request->q.push_back(q(i));
@@ -222,7 +224,7 @@ std::shared_ptr<quik::srv::FKService::Request> fk_make_request(const Eigen::Vect
  * @param[out] d The point (x,y,z)
  */
 void fk_parse_response(const quik::srv::FKService::Response::SharedPtr& response,
-    Vector4d& quat, Vector3d& d)
+    Quaternion_t& quat, Point3_t& d)
 {
     quat << response->pose.orientation.x, response->pose.orientation.y, response->pose.orientation.z, response->pose.orientation.w;
     d << response->pose.position.x, response->pose.position.y, response->pose.position.z;
@@ -231,10 +233,10 @@ void fk_parse_response(const quik::srv::FKService::Response::SharedPtr& response
 /**
  * @brief Builds a jacobian request and returns the future for it.
  * 
- * @param q The robot joint variables (as an Eigen::VectorXd)
+ * @param q The robot joint variables (as an JointState_t<Dynamic>)
  * @return std::shared_ptr<quik::srv::JacobianService::Request>
  */
-std::shared_ptr<quik::srv::JacobianService::Request> jacobian_make_request(const Eigen::VectorXd& q)
+std::shared_ptr<quik::srv::JacobianService::Request> jacobian_make_request(const JointState_t<Dynamic>& q)
 {
     auto request = std::make_shared<quik::srv::JacobianService::Request>();
     for (int i=0; i<q.size(); ++i) request->q.push_back(q(i));
@@ -246,9 +248,9 @@ std::shared_ptr<quik::srv::JacobianService::Request> jacobian_make_request(const
  * (of size 6xDOF).
  * 
  * @param[in] response 
- * @param[out] Eigen::MatrixXd The Jacobian matrix. Must be 6xDOF
+ * @param[out] Jacobian_t<DOF> The Jacobian matrix. Must be 6xDOF
  */
-void jacobian_parse_response(const quik::srv::JacobianService::Response::SharedPtr& response, Eigen::MatrixXd& jacobian)
+void jacobian_parse_response(const quik::srv::JacobianService::Response::SharedPtr& response, Jacobian_t<Dynamic>& jacobian)
 {
     int dof = response->jacobian.size() / 6;
 
@@ -275,9 +277,9 @@ void jacobian_parse_response(const quik::srv::JacobianService::Response::SharedP
  * @return std::shared_ptr<quik::srv::IKService::Request>
  */
 std::shared_ptr<quik::srv::IKService::Request> ik_make_request(
-    const Eigen::Vector4d& quat_des,
-    const Eigen::Vector3d& d_des,
-    const Eigen::VectorXd& q_0)
+    const Quaternion_t& quat_des,
+    const Point3_t& d_des,
+    const JointState_t<Dynamic>& q_0)
 {
     auto request = std::make_shared<quik::srv::IKService::Request>();
     request->target_pose.orientation.x = quat_des(0);
@@ -302,15 +304,15 @@ std::shared_ptr<quik::srv::IKService::Request> ik_make_request(
  * @return success (true or false)
  */
 bool ik_parse_response(const quik::srv::IKService::Response::SharedPtr& response,
-    VectorXd& q_star,
-    Vector<double,6>& e_star,
+    JointState_t<Dynamic>& q_star,
+    Twist_t& e_star,
     int& iter,
-    quik::BREAKREASON_t& breakReason)
+    BreakReason_t& breakReason)
 {
     q_star = Eigen::VectorXd::Map(response->q_star.data(), response->q_star.size());
     e_star = Eigen::VectorXd::Map(response->e_star.data(), response->e_star.size());
     iter = response->iter;
-    breakReason = static_cast<quik::BREAKREASON_t>(response->break_reason);
+    breakReason = static_cast<BreakReason_t>(response->break_reason);
     return response->success;
 }
 

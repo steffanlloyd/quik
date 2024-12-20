@@ -21,8 +21,10 @@
 #pragma once
 
 #include "Eigen/Dense"
+#include "quik/types.hpp"
 
 using namespace Eigen;
+using namespace quik;
 
 namespace quik{
 namespace geometry{
@@ -35,11 +37,11 @@ namespace geometry{
  *  by the Levenberg–Marquardt Method,” IEEE Trans. Robot.,
  *  vol. 27, no. 5, pp. 984–991, Oct. 2011.
  * 
- * @param[in] T1 The first transform
- * @param[in] T2 The second transform
- * @param[out] e The error (passed as reference and transformed)
+ * @param[in] T1 Hgt_t The first transform
+ * @param[in] T2 Hgt_t The second transform
+ * @param[out] e Twist_t The error (passed as reference and transformed)
  */
-void hgtDiff(const Matrix4d& T1, const Matrix4d& T2, Vector<double,6>& e);
+void hgtDiff(const Hgt_t& T1, const Hgt_t& T2, Twist_t& e);
 
 /**
  * @brief Computes the inverse of a 4x4 homogenious transformation matrix
@@ -47,30 +49,30 @@ void hgtDiff(const Matrix4d& T1, const Matrix4d& T2, Vector<double,6>& e);
  * The rotation portion of the transform is just transposed to invert it.
  * Then, the displacement section is just rotated and negated.
  * 
- * @param[in] T The matrix to invert (passed as reference)
- * @return Matrix4d 
+ * @param[in] T Hgt_t The matrix to invert (passed as reference)
+ * @return Hgt_t 
  */
-Matrix4d hgtInv( const Matrix4d& T );
+Hgt_t hgtInv( const Hgt_t& T );
 
 /**
  * @brief Converts a 4x4 homogeneous transformation matrix into a 4-vector quaternion
  * and a 3-vector displacement vector
  * 
- * @param[in] T Matrix4d T, the homogeneous transformation matrix. 
- * @param[out] quat The output quaterneon (x,y,z,w)
- * @param[out] d The output displacement vector (x,y,z)
+ * @param[in] T Hgt_t T, the homogeneous transformation matrix. 
+ * @param[out] quat Quaternion_t The output quaterneon (x,y,z,w)
+ * @param[out] d Point3_t The output displacement vector (x,y,z)
  */
-void hgt2quatpos( const Matrix4d& T, Vector4d& quat, Vector3d& d);
+void hgt2quatpos( const Hgt_t& T, Quaternion_t& quat, Point3_t& d);
 
 /**
  * @brief Converts several 4x4 homogeneous transformation matrix into a matrix of 
  * 4-vector quaternions and 3-vector displacement vectors
  * 
- * @param[in] T Matrix<double,4*N,4> T, the homogeneous transformation matrix. 
- * @param[out] quat Matrix<double,4,N> The output quaterneon (x,y,z,w)
- * @param[out] d Matrix<double,3,N> The output displacement vector (x,y,z)
+ * @param[in] T HgtArray_t<N> T, the homogeneous transformation matrix. 
+ * @param[out] quat QuaternionArray_t<N> The output quaterneon (x,y,z,w)
+ * @param[out] d Point3Array_t<N> The output displacement vector (x,y,z)
  */
-void hgt2quatpos( const Matrix<double,Dynamic,4>& T, Matrix<double,4,Dynamic>& quat, Matrix<double,3,Dynamic>& d);
+void hgt2quatpos( const HgtArray_t<Dynamic>& T, QuaternionArray_t<Dynamic>& quat, Point3Array_t<Dynamic>& d);
 
 /**
  * @brief Converts a 4-vector quaternion and a 3-vector displacement vector
@@ -78,19 +80,19 @@ void hgt2quatpos( const Matrix<double,Dynamic,4>& T, Matrix<double,4,Dynamic>& q
  * 
  * @param[in] quat The input quaterneon (x,y,z,w)
  * @param[in] d The input displacement vector (x,y,z)
- * @param[out] T Matrix4d T, the output homogeneous transformation matrix. 
+ * @param[out] T Hgt_t T, the output homogeneous transformation matrix. 
  */
-void quatpos2hgt( const Vector4d& quat, const Vector3d& d, Matrix4d& T);
+void quatpos2hgt( const Quaternion_t& quat, const Point3_t& d, Hgt_t& T);
 
 /**
  * @brief Converts several 4-vector quaternions and 3-vector displacement vectors
  * to 4x4 homogeneous transformation matrices (vertically stacked)..
  * 
- * @param[in] quat Matrix<double,4,N> The input quaterneon (x,y,z,w)
- * @param[in] d Matrix<double,3,N> The input displacement vector (x,y,z)
- * @param[out] T Matrix<double,4*N,4> T, the output homogeneous transformation matrix. 
+ * @param[in] quat QuaternionArray_t<N> The input quaterneon (x,y,z,w)
+ * @param[in] d Point3Array_t<N> The input displacement vector (x,y,z)
+ * @param[out] T HgtArray_t<N> T, the output homogeneous transformation matrix. 
  */
-void quatpos2hgt( const Matrix<double,4,Dynamic>& quat, const Matrix<double,3,Dynamic>& d, Matrix<double,Dynamic,4>& T);
+void quatpos2hgt( const QuaternionArray_t<Dynamic>& quat, const Point3Array_t<Dynamic>& d, HgtArray_t<Dynamic>& T);
 
 /**
  * @brief Checks if a matrix is a homogeneous transformation matrix
@@ -98,7 +100,7 @@ void quatpos2hgt( const Matrix<double,4,Dynamic>& quat, const Matrix<double,3,Dy
  * @param T The matrix
  * @return bool
  */
-bool isRotationMatrix(const Matrix3d &R, double tolerance = 1e-6);
+bool isRotationMatrix(const Rotation_t &R, double tolerance = 1e-6);
 
 /**
  * @brief Checks if a matrix is a homogeneous transformation matrix
@@ -106,7 +108,7 @@ bool isRotationMatrix(const Matrix3d &R, double tolerance = 1e-6);
  * @param T The matrix
  * @return bool
  */
-bool ishgt(const Matrix4d &T, double tolerance = 1e-6);
+bool ishgt(const Hgt_t &T, double tolerance = 1e-6);
 
 } // End of namespace Geometry
 } // End of namespace quik

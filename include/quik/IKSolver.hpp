@@ -6,10 +6,9 @@
  * The key parameters:
  *      - max_iterations [int]: Maximum number of iterations of the
  *        algorithm. Default: 100
- *      - algorithm [ALGORITHM_t]: The algorithm to use
+ *      - algorithm [Algorithm_t]: The algorithm to use
  *        ALGORITHM_QUIK - QuIK
  *        ALGORITHM_NR - Newton-Raphson or Levenberg-Marquardt
- *        ALGORITHM_BFGS - BFGS
  *        Default: ALGORITHM_QUIK.
  *      - exit_tolerance [double]: The exit tolerance on the norm of the
  *        error. Default: 1e-12.
@@ -27,16 +26,12 @@
  *      - lambda_squared [double]: The square of the damping factor, lambda.
  *        Only applies to the NR and QuIK methods. If given, these
  *        methods become the DNR (also known as levenberg-marquardt)
- *        or the DQuIK algorithm. Ignored for BFGS algorithm.
+ *        or the DQuIK algorithm. 
  *        Default: 0.
  *      - max_linear_step_size [double]: An upper limit of the error step
- *        in a single step. Ignored for BFGS algorithm. Default: 0.3.
+ *        in a single step. Default: 0.3.
  *      - max_angular_step_size [double]: An upper limit of the error step
- *        in a single step. Ignored for BFGS algorithm. Default: 1.
- *      - armijo_sigma [double]: The sigma value used in armijo's
- *        rule, for line search in the BFGS method. Default: 1e-5
- *      - armijo_beta [double]: The beta value used in armijo's
- *        rule, for line search in the BFGS method. Default: 0.5
+ *        in a single step. Default: 1.
  * 
  * Key methods defined are documented below, but are:
  *     - quik::IKSolver::IK(Twt, Q0, Q_star, e_star, iter, breakReason): Computes
@@ -64,80 +59,81 @@
 #include <iostream>
 #include <cmath>
 #include "Eigen/Dense"
+#include "quik/types.hpp"
 #include "quik/Robot.hpp"
+#include "quik/Constraint.hpp"
 #include "quik/geometry.hpp"
 
 
 using namespace Eigen;
+using namespace quik;
 using namespace std;
 
 namespace quik{
 
-enum BREAKREASON_t : uint8_t {
+enum BreakReason_t : uint8_t {
     BREAKREASON_TOLERANCE = 0, // Tolerance reached
     BREAKREASON_MIN_STEP, // minimum step size is reached
     BREAKREASON_MAX_ITER, // Max iterations reached
     BREAKREASON_GRAD_FAILS // Gradient failed to improve
 };
 
-inline quik::BREAKREASON_t str2breakreason(std::string breakReason) {
-    if (breakReason == "BREAKREASON_TOLERANCE") return quik::BREAKREASON_TOLERANCE;
-    else if (breakReason == "BREAKREASON_MIN_STEP") return quik::BREAKREASON_MIN_STEP;
-    else if (breakReason == "BREAKREASON_MAX_ITER") return quik::BREAKREASON_MAX_ITER;
-    else if (breakReason == "BREAKREASON_GRAD_FAILS") return quik::BREAKREASON_GRAD_FAILS;
+inline BreakReason_t str2breakreason(std::string breakReason) {
+    if (breakReason == "BREAKREASON_TOLERANCE") return BREAKREASON_TOLERANCE;
+    else if (breakReason == "BREAKREASON_MIN_STEP") return BREAKREASON_MIN_STEP;
+    else if (breakReason == "BREAKREASON_MAX_ITER") return BREAKREASON_MAX_ITER;
+    else if (breakReason == "BREAKREASON_GRAD_FAILS") return BREAKREASON_GRAD_FAILS;
     else throw std::runtime_error("Invalid BREAKREASON string");
 };
 
-inline std::string breakreason2str(quik::BREAKREASON_t breakReason) {
+inline std::string breakreason2str(BreakReason_t breakReason) {
     switch(breakReason) {
-        case quik::BREAKREASON_TOLERANCE: return "BREAKREASON_TOLERANCE";
-        case quik::BREAKREASON_MIN_STEP: return "BREAKREASON_MIN_STEP";
-        case quik::BREAKREASON_MAX_ITER: return "BREAKREASON_MAX_ITER";
-        case quik::BREAKREASON_GRAD_FAILS: return "BREAKREASON_GRAD_FAILS";
+        case BREAKREASON_TOLERANCE: return "BREAKREASON_TOLERANCE";
+        case BREAKREASON_MIN_STEP: return "BREAKREASON_MIN_STEP";
+        case BREAKREASON_MAX_ITER: return "BREAKREASON_MAX_ITER";
+        case BREAKREASON_GRAD_FAILS: return "BREAKREASON_GRAD_FAILS";
         default: return "UNKNOWN_BREAKREASON";
     }
 };
 
-enum ALGORITHM_t : uint8_t {
+enum Algorithm_t : uint8_t {
     ALGORITHM_QUIK = 0, // Recommended: The QuIK method
     ALGORITHM_NR, // Newton-Raphson or Levenberg-Marquardt
-    ALGORITHM_BFGS // Not recommended: The BFGS line search
 };
 
-inline ALGORITHM_t str2algorithm(const std::string& algorithm)
+inline Algorithm_t str2algorithm(const std::string& algorithm)
 {
     if (algorithm == "ALGORITHM_QUIK") return ALGORITHM_QUIK;
     else if (algorithm == "ALGORITHM_NR") return ALGORITHM_NR;
-    else if (algorithm == "ALGORITHM_BFGS") return ALGORITHM_BFGS;
-    else throw std::runtime_error("Invalid ALGORITHM_t string");
+    else throw std::runtime_error("Invalid Algorithm_t string");
 };
 
-inline std::string algorithm2str(ALGORITHM_t algorithm) {
+inline std::string algorithm2str(Algorithm_t algorithm) {
     switch(algorithm) {
         case ALGORITHM_QUIK: return "ALGORITHM_QUIK";
         case ALGORITHM_NR: return "ALGORITHM_NR";
-        case ALGORITHM_BFGS: return "ALGORITHM_BFGS";
         default: return "UNKNOWN_ALGORITHM";
     }
 };
 
-
-template<int DOF=Dynamic>
+template<int DOF=Dynamic, int m=Dynamic>
 class IKSolver {
 public:
 
     // @brief Robot R: The robot object that is being solved.
     std::shared_ptr<Robot<DOF>> R;
+
+    // @brief The constraint used to for the inverse kinematics
+    std::shared_ptr<Constraint<m>> C;
     
     // @brief max_iterations [int]: Maximum number of iterations of the algorithm. Default: 100
 	int max_iterations;
     
-    // @brief algorithm [ALGORITHM_t]: The algorithm to use
+    // @brief algorithm [Algorithm_t]: The algorithm to use
     //     - ALGORITHM_QUIK - QuIK
     //     - ALGORITHM_NR - Newton-Raphson or Levenberg-Marquardt
-    //     - ALGORITHM_BFGS - BFGS
     //     - Default: 0.
-	quik::ALGORITHM_t algorithm;
+	Algorithm_t algorithm;
 
     // @brief The exit tolerance on the norm of the
     // error. Default: 1e-12.
@@ -163,34 +159,26 @@ public:
     // @brief The square of the damping factor, lambda.
     // Only applies to the NR and QuIK methods. If given, these
     // methods become the DNR (also known as levenberg-marquardt)
-    // or the DQuIK algorithm. Ignored for BFGS algorithm.
+    // or the DQuIK algorithm.
     // Default: 0.
 	double lambda_squared;
 
     // @brief max_linear_step_size [double]: An upper limit of the error step
-    // in a single step. Ignored for BFGS algorithm. 
+    // in a single step. 
     // Give a negative value to compute it automatically from the characteristic 
     // length of the robot. Default: 0.33 * Robot.characteristicLength().
 	double max_linear_step_size;
 
     // @brief max_angular_step_size [double]: An upper limit of the error step
-    // in a single step. Ignored for BFGS algorithm. Default: 1.
+    // in a single step. Default: 1.
 	double max_angular_step_size;
-
-    // @brief armijo_sigma [double]: The sigma value used in armijo's
-    // rule, for line search in the BFGS method. Default: 1e-5
-	double armijo_sigma;
-
-
-    // @brief armijo_beta [double]: The beta value used in armijo's
-    // rule, for line search in the BFGS method. Default: 0.5
-	double armijo_beta;
 
     // Constructor
 	IKSolver(
         std::shared_ptr<Robot<DOF>> _R,
+        std::shared_ptr<Constraint<m>> _C = std::make_shared(new WorldConstraint()),
         int _max_iterations = 100,
-        quik::ALGORITHM_t _algorithm = quik::ALGORITHM_QUIK,
+        Algorithm_t _algorithm = ALGORITHM_QUIK,
         double _exit_tolerance = 1e-12,
         double _minimum_step_size = 1e-14,
         double _relative_improvement_tolerance = 0.05,
@@ -198,10 +186,9 @@ public:
         int _max_gradient_fails = 20,
         double _lambda_squared = 0,
         double _max_linear_step_size = -1,
-        double _max_angular_step_size = 1,
-        double _armijo_sigma = 1e-5,
-        double _armijo_beta = 0.5 )
+        double _max_angular_step_size = 1 )
         :   R(_R),
+            C(_C),
             max_iterations(_max_iterations),
             algorithm(_algorithm),
             exit_tolerance(_exit_tolerance),
@@ -211,9 +198,7 @@ public:
             max_gradient_fails(_max_gradient_fails),
             lambda_squared(_lambda_squared),
             max_linear_step_size(_max_linear_step_size),
-            max_angular_step_size(_max_angular_step_size),
-            armijo_sigma(_armijo_sigma),
-            armijo_beta(_armijo_beta)
+            max_angular_step_size(_max_angular_step_size)
     {
 
         if(this->max_linear_step_size <= 0){
@@ -240,12 +225,10 @@ public:
 		if(this->lambda_squared < 0) throw std::runtime_error("lambda_squared must be a positive number or zero!");
 		if(this->max_linear_step_size <= 0) throw std::runtime_error("max_linear_step_size must be a positive number!");
 		if(this->max_angular_step_size <= 0) throw std::runtime_error("max_angular_step_size must be a positive number!");
-		if(this->armijo_sigma <= 0) throw std::runtime_error("armijo_sigma must be a positive number!");
-		if(this->armijo_beta <= 0) throw std::runtime_error("armijo_beta must be a positive number!");
     }
 
     /**
-     * @brief IK A basic IK implementation of the QuIK, NR and BFGS algorithms. 
+     * @brief IK A basic IK implementation of the QuIK, NR algorithms. 
      * 
      * @param[in] Twt Matrix4d& Twt: A transformation matrix from the world frame
      * to the tool frame.
@@ -253,71 +236,71 @@ public:
      * @param[out] Q_star  Matrix<double,DOF>& Qstar: [DOF] The solved joint angles
      * @param[out] e_star Matrix<double,6>&e: The pose errors at the final solution.
      * @param[out] iter int iter: The number of iterations the algorithm took.
-     * @param[out] breakReason BREAKREASON_t breakReason: The reason the algorithm stopped.
-     *          See BREAKREASON_t for list of reasons.
+     * @param[out] breakReason BreakReason_t breakReason: The reason the algorithm stopped.
+     *          See BreakReason_t for list of reasons.
      */
     void IK(
-		const Matrix4d& Twt,
-		const Vector<double,DOF>& Q0,
-		Vector<double,DOF>& Q_star,
-		Vector<double,6>& e_star,
+		const Hgt_t& Twt,
+		const JointState_t<DOF>& Q0,
+		JointState_t<DOF>& Q_star,
+		Twist_t& e_star,
 		int& iter,
-		quik::BREAKREASON_t& breakReason) const
+		BreakReason_t& breakReason) const
     {
         // Initialize variables
-        Vector<double,DOF>  Q = Q0;     // Holds the current solution guess
-        Vector<double,DOF>  dQ,         // Holds the iterative joint step computed by the algorithm
-                            s0,         // Holds the step size in the BFGS line search
-                            grad_i,     // Gradient of current iteration (used in BFGS)
-                            grad_ip1,   //  Gradient of next iteration (used in BFGS)
-                            y;          // Estimated Hessian (used in BFGS)
-        Vector<double,6>    e;          // The error vector.
-        Matrix<double,6,DOF> J(6, this->R->dof), // Holds the robot jacobian
+        JointState_t<DOF>   Q = Q0;     // Holds the current solution guess
+        JointState_t<DOF>   dQ;         // Holds the iterative joint step computed by the algorithm
+        Twist_t             e,          // The error vector.
+                            e_clamp;    // The clamped error vector    
+        Jacobian_t<DOF>     J(6, this->R->dof), // Holds the robot jacobian
                             A;          // Holds the Hessian product term for the QuIK algorithm
+        Vector<double,m>    e_tilde,    // The transformed error
+                            e_clamp_tilde; // the clamped transformed error
+        Matrix<double,m,DOF> J_tilde;   // The transformed Jacobian
+        Matrix<double,m,DOF> A_tilde;   // The transformed Hessian multiplication
         Matrix<double,DOF,DOF> H_i;     // H variable, used in bfgs algorithm
         int 	grad_fail_counter = 0,  // Holds a count of the times the gradient has failed
                 grad_fail_counter_total = 0;
         double 	e_norm = 0,             // Holds the normed error
                 e_prev_norm = 1e10,     // Holds the normed error (previous iteration)
-                error_relImprovement = 0,
-                cost_i = 1e10,          // Used in BFGS
-                cost_ip1 = 1e10,        // Used in BFGS
-                gamma,                  // Used in BFGS
-                rho,                    // Used in BFGS
-                delta;                  // Used in BFGS
+                error_relImprovement = 0;
 
         // Init variable that can store all the transforms for each frame of orobt
-        constexpr int DOF4 = DOF>0 ? (DOF+1)*4 : -1;
-        Matrix<double,DOF4,4> T((this->R->dof+1)*4, 4); // Holds the forward kinematics for each joint
+        JointHgtArray_t<DOF> T((this->R->dof+1)*4, 4); // Holds the forward kinematics for each joint
 
         // Preassign some values
         e.fill(0);
         dQ.fill(0);
         iter = this->max_iterations;
-        breakReason = quik::BREAKREASON_MAX_ITER; // Initialize to this, it will be overwritten if it doesn't reach max iter
+        breakReason = BREAKREASON_MAX_ITER; // Initialize to this, it will be overwritten if it doesn't reach max iter
         
         // Start IK iterations
         for (int i = 0; i < this->max_iterations; i++){
             
             // Get error, forward kinematics and jacobian
-            // Only do this for Newton and QuIK, or on first iteration
-            if (this->algorithm != quik::ALGORITHM_BFGS || i == 0){
-                // Update T with forward kinematics
-                this->R->FK( Q, T );
-                
-                // Get jacobian, store it in J
-                this->R->jacobian(T, J, true);
-                
-                // Update error between target and current error, store in e
-                geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
-            }
+            // Update T with forward kinematics
+            this->R->FK( Q, T );
+            
+            // Get jacobian, store it in J
+            this->R->jacobian(T, J, true);
+            
+            // Update error between target and current error, store in e
+            geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
+
+            // Get the clamped error
+            this->clampMag(e, e_clamp);
+
+            // Transform the error and jacobian
+            e_tilde = this->C->transform<1>(e);
+            e_clamp_tilde = this->C->transform<1>(e_clamp);
+            J_tilde = this->C->transform<DOF>(J);
             
             // Calculate norm
-            e_norm = e.norm();
+            e_norm = e_tilde.norm();
 
             // Break, if exit tolerance has been reached
             if (e_norm < this->exit_tolerance){
-                breakReason = quik::BREAKREASON_TOLERANCE; // Tolerance reached
+                breakReason = BREAKREASON_TOLERANCE; // Tolerance reached
                 iter = i;
                 break;
             }
@@ -331,12 +314,12 @@ public:
                 grad_fail_counter++;
                 grad_fail_counter_total++;
                 if (grad_fail_counter > this->max_consecutive_grad_fails) {
-                    breakReason = quik::BREAKREASON_GRAD_FAILS; // Grad consecutive fails reached
+                    breakReason = BREAKREASON_GRAD_FAILS; // Grad consecutive fails reached
                     iter = i;
                     break;
                 }
                 if (grad_fail_counter_total > this->max_gradient_fails) {
-                    breakReason = quik::BREAKREASON_GRAD_FAILS; // Grad fails reached
+                    breakReason = BREAKREASON_GRAD_FAILS; // Grad fails reached
                     iter = i;
                     break;
                 }
@@ -346,19 +329,16 @@ public:
 
             // Store prev value
             e_prev_norm = e_norm;
-            
-            // Clamp error, before taking steps
-            this->clampMag(e);
-            
+
             // Go to switch statement to do work of each individual algorithm
             switch (this->algorithm){
                     
                     
-                case quik::ALGORITHM_QUIK:
+                case ALGORITHM_QUIK:
                     // Halley's method (QuIK Method)
                     
                     // First, store the newton step in dQ (note, it's negative)
-                    this->lsolve( J, e, dQ);
+                    this->lsolve( J_tilde, e_tilde, dQ);
                     
                     // Then, negate it and divide by two
                     dQ *= -0.5;
@@ -368,85 +348,24 @@ public:
 
                     // Get gradient product, this gets added automatically since A holds J
                     this->R->hessianProduct( J, dQ, A );
+
+                    // Transform A again
+                    A_tilde = this->C->transform<DOF>(A);
                                         
                     // Resolve
-                    this->lsolve(A, e, dQ);
+                    this->lsolve(A_tilde, e_tilde, dQ);
                     dQ *= -1;
                     
                     break;
                     
                     
                     
-                case quik::ALGORITHM_NR:
+                case ALGORITHM_NR:
                     // Newton's method
-                    this->lsolve( J, e, dQ);
+                    this->lsolve( J_tilde, e_tilde, dQ);
                     dQ *= -1;
                     break;
-                    
-                    
-                    
-                case quik::ALGORITHM_BFGS:
-                    // BFGS
-                    // On first iteration, initialize some variables
-                    if (i == 0){
-                        H_i = Matrix<double,DOF,DOF>::Identity(this->R->dof, this->R->dof);
-                        grad_i = J.transpose() * e;
-                        cost_i = 0.5*e.array().square().sum();
-                    }
-                    
-                    // Get initial step
-                    s0 = -H_i*grad_i;
-                    
-                    // Initialize line search
-                    gamma = 1;
-                    
-                    // Recalculate cost and error
-                    this->R->FK( Q + gamma*s0, T );
-                    geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
-                    cost_ip1 = 0.5*e.array().square().sum();
-                    
-                    // Do line search
-                    while ((cost_i - cost_ip1) < -this->armijo_sigma * grad_i.transpose()*(gamma*s0)){
-                        // Reduce gamma
-                        gamma = this->armijo_beta * gamma;
-                        
-                        // Break if step size is too small (prevents infinite loops too)
-                        if (gamma < this->minimum_step_size) break;
-                        
-                        // Recalculate cost
-                        this->R->FK( Q + gamma*s0, T );
-                        geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
-                        cost_ip1 = 0.5*e.array().square().sum();
-                    }
-                    
-                    // Break out if step size is too small
-                    if (gamma < this->minimum_step_size){
-                        breakReason = quik::BREAKREASON_MIN_STEP; // reached minimum step size
-                        iter = i;
-                        break;
-                    }
-                    
-                    // Take step
-                    dQ = gamma*s0;
-                    
-                    // Update gradient (T and e are already updated)
-                    this->R->jacobian(T, J);
-                    grad_ip1 = J.transpose() * e;
-                    
-                    // Update gradient
-                    y = grad_ip1 - grad_i;
-                    rho = dQ.transpose() * y;
-                    delta = y.transpose() * H_i * y;
-                    if (rho > delta && rho > numeric_limits<double>::epsilon())
-                        H_i = H_i + ( (1 + delta/rho) * dQ*dQ.transpose() - dQ*y.transpose()*H_i - H_i*y*dQ.transpose())/rho;
-                    else if (delta > numeric_limits<double>::epsilon() && rho > numeric_limits<double>::epsilon())
-                        H_i = H_i + (dQ*dQ.transpose())/rho - H_i*(y*y.transpose())*H_i/delta;
-                    
-                    // Update variables for next time
-                    grad_i = grad_ip1;
-                    cost_i = cost_ip1;
-                    
-                    break;
+
 
                     
                 default:
@@ -462,7 +381,7 @@ public:
             
             // Check grad tolerance, break if necessary
             if (dQ.array().square().sum() < this->minimum_step_size * this->minimum_step_size){
-                breakReason = quik::BREAKREASON_MIN_STEP; // minimum step sized reached
+                breakReason = BREAKREASON_MIN_STEP; // minimum step sized reached
                 iter = i;
                 break;
             }
@@ -482,24 +401,24 @@ public:
      * (one column for each pose to solve).
      * @param[in] d Vector<double,3>& d: A 3-vector (x,y,z), or 3xN matrix of displacement
      * vectors (one column for each pose to solve).
-     * @param[in] Q0 Vector<double,DOF>& Q0: Initial guesses of the joint angles
+     * @param[in] Q0 JointState_t<DOF>& Q0: Initial guesses of the joint angles
      * @param[out] Q_star  Matrix<double,DOF>& Qstar: [DOF] The solved joint angles
      * @param[out] e_star Matrix<double,6>&e: The pose errors at the final solution.
      * @param[out] iter int iter: The number of iterations the algorithm took.
-     * @param[out] breakReason BREAKREASON_t breakReason: The reason the algorithm stopped.
-     *          See BREAKREASON_t for list of reasons.
+     * @param[out] breakReason BreakReason_t breakReason: The reason the algorithm stopped.
+     *          See BreakReason_t for list of reasons.
      */
     void IK(
 		const Vector<double,4>& quat,
 		const Vector<double,3>& d,
-		const Vector<double,DOF>& Q0,
-		Vector<double,DOF>& Q_star,
-		Vector<double,6>& e_star,
+		const JointState_t<DOF>& Q0,
+		JointState_t<DOF>& Q_star,
+		Twist_t& e_star,
 		int& iter,
-		quik::BREAKREASON_t& breakReason) const
+		BreakReason_t& breakReason) const
     {
         // Initialize and compute Twt
-        Matrix4d Twt;
+        Hgt_t Twt;
         geometry::quatpos2hgt(quat, d, Twt);
 
         // Call the first version of IK
@@ -508,7 +427,7 @@ public:
 
 
     /**
-     * @brief IK A basic IK implementation of the QuIK, NR and BFGS algorithms. This calling 
+     * @brief IK A basic IK implementation of the QuIK, and NR algorithms. This calling 
      * syntax allows to solve multiple inverse kinematics at once.
      * 
      * @param[in] Twt Matrix<double,4*N,4>& Twt: A transformation matrix from the world frame
@@ -518,16 +437,16 @@ public:
      * @param[out] Q_star  Matrix<double,DOF,N>& Qstar: [DOFxN] The solved joint angles
      * @param[out] e_star Matrix<double,6,N>&e: The pose errors at the final solution.
      * @param[out] iter std::vector<int>& iter: The number of iterations the algorithm took.
-     * @param[out] breakReason std::vector<BREAKREASON_t>& breakReason: The reason the algorithm stopped.
-     *          See BREAKREASON_t for list of reasons.
+     * @param[out] breakReason std::vector<BreakReason_t>& breakReason: The reason the algorithm stopped.
+     *          See BreakReason_t for list of reasons.
      */
     void IK(
-		const Matrix<double,Dynamic,4>& Twt,
-		const Matrix<double,DOF,Dynamic>& Q0,
-		Matrix<double,DOF,Dynamic>& Q_star,
-		Matrix<double,6,Dynamic>& e_star,
+		const HgtArray_t<Dynamic>& Twt,
+		const JointStateArray_t<DOF,Dynamic>& Q0,
+		JointStateArray_t<DOF,Dynamic>& Q_star,
+		TwistArray_t<Dynamic>& e_star,
 		std::vector<int>& iter,
-		std::vector<quik::BREAKREASON_t>& breakReason) const
+		std::vector<BreakReason_t>& breakReason) const
     {
         // Get size of problem
         int N = (int) Q0.cols();
@@ -544,10 +463,10 @@ public:
         // Start iterations over poses to solve
         for (int i = 0; i < N; i++){
             // Init variables to store answers
-            Vector<double,DOF> Q_star_i;
-            Vector<double,6> e_star_i;
+            JointState_t<DOF> Q_star_i;
+            Twist_t e_star_i;
             int iter_i;
-            quik::BREAKREASON_t breakReason_i;
+            BreakReason_t breakReason_i;
 
             this->IK(
                 Twt.middleRows<4>(4*i),
@@ -580,17 +499,17 @@ public:
      * @param[out] Q_star  Matrix<double,DOF,N>& Qstar: [DOFxN] The solved joint angles
      * @param[out] e_star Matrix<double,6,N>&e: The pose errors at the final solution.
      * @param[out] iter std::vector<int>& iter: The number of iterations the algorithm took.
-     * @param[out] breakReason std::vector<BREAKREASON_t>& breakReason: The reason the algorithm stopped.
-     *          See BREAKREASON_t for list of reasons.
+     * @param[out] breakReason std::vector<BreakReason_t>& breakReason: The reason the algorithm stopped.
+     *          See BreakReason_t for list of reasons.
      */
     void IK(
 		const Matrix<double,4,Dynamic>& quat,
 		const Matrix<double,3,Dynamic>& d,
-		const Matrix<double,DOF,Dynamic>& Q0,
-		Matrix<double,DOF,Dynamic>& Q_star,
-		Matrix<double,6,Dynamic>& e_star,
+		const JointStateArray_t<DOF,Dynamic>& Q0,
+		JointStateArray_t<DOF,Dynamic>& Q_star,
+		TwistArray_t<Dynamic>& e_star,
 		std::vector<int>& iter,
-		std::vector<quik::BREAKREASON_t>& breakReason) const
+		std::vector<BreakReason_t>& breakReason) const
     {
         // Convert to homogenous transform
         int N = quat.cols();
@@ -614,23 +533,26 @@ public:
      * 
      * @param e 
      */
-    void clampMag(Vector<double,6>& e) const
-    {
-        // Break out early if we're doing BFGS, this isn't relevant
-        if (this->algorithm == 2) return;
-        
+    void clampMag(const Twist_t& e, Twist_t& e_clamp) const
+    {    
+        // Init the output
+        e_clamp = e;
+
         // Calculate the squared normed error
         // This avoids doing the sqrt unless necessary
-        double ei_lin_norm2 = e.head<3>().array().square().sum();
-        double ei_ang_norm2 = e.tail<3>().array().square().sum();
+        double ei_lin_norm2 = e_clamp.head<3>().array().square().sum();
+        double ei_ang_norm2 = e_clamp.tail<3>().array().square().sum();
 
         // If either limit is greater than the square of the threshold, then rescale
         // the appropriate part of the error
         if (ei_lin_norm2 > (this->max_linear_step_size * this->max_linear_step_size))
-            e.head<3>() *= this->max_linear_step_size / sqrt(ei_lin_norm2);
+            e_clamp.head<3>() *= this->max_linear_step_size / sqrt(ei_lin_norm2);
         
         if (ei_ang_norm2 > (this->max_angular_step_size * this->max_angular_step_size))
-            e.tail<3>() *= this->max_angular_step_size / sqrt(ei_ang_norm2);
+            e_clamp.tail<3>() *= this->max_angular_step_size / sqrt(ei_ang_norm2);
+
+        // Warning for next use
+        cout << "WARNING: clampMag function needs testing" << endl;
     } // End of clampMag()
 
     /**
@@ -673,10 +595,6 @@ public:
         cout << "\tIKSolver.lambda_squared: " << this->lambda_squared << endl;
         cout << "\tIKSolver.max_linear_step_size: " << this->max_linear_step_size << endl;
         cout << "\tIKSolver.max_angular_step_size: " << this->max_angular_step_size << endl;
-        if (this->algorithm == quik::ALGORITHM_BFGS){
-            cout << "\tIKSolver.armijo_sigma: " << this->armijo_sigma << endl;
-            cout << "\tIKSolver.armijo_beta: " << this->armijo_beta << endl;
-        }
         cout << endl << endl;
     }
 

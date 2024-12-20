@@ -20,9 +20,11 @@
  */
 #include "quik/geometry.hpp"
 #include "Eigen/Dense"
+#include "quik/types.hpp"
 #include <iostream>
 
 using namespace Eigen;
+using namespace quik;
 
 namespace quik{
 namespace geometry{
@@ -39,10 +41,10 @@ namespace geometry{
  * @param[in] T2 The second transform
  * @param[out] e The error (passed as reference and transformed)
  */
-void hgtDiff(const Matrix4d& T1, const Matrix4d& T2, Vector<double,6>& e)
+void hgtDiff(const Hgt_t& T1, const Hgt_t& T2, Twist_t& e)
 {
-    Matrix3d R1, R2, Re;
-    Vector3d d1, d2, eps;
+    Rotation_t R1, R2, Re;
+    Point3_t d1, d2, eps;
     double eps_norm, t;
     
     // Break out values
@@ -109,11 +111,11 @@ void hgtDiff(const Matrix4d& T1, const Matrix4d& T2, Vector<double,6>& e)
  * Then, the displacement section is just rotated and negated.
  * 
  * @param[in] T The matrix to invert (passed as reference)
- * @return Matrix4d 
+ * @return Hgt_t 
  */
-Matrix4d hgtInv( const Matrix4d& T )
+Hgt_t hgtInv( const Hgt_t& T )
 {
-    Matrix4d Tinv;
+    Hgt_t Tinv;
     Tinv.topLeftCorner<3,3>() = T.topLeftCorner<3,3>().transpose();
     Tinv.topRightCorner<3,1>() = -Tinv.topLeftCorner<3,3>()*T.topRightCorner<3,1>();
     Tinv.bottomLeftCorner<1,3>().fill(0);
@@ -125,14 +127,14 @@ Matrix4d hgtInv( const Matrix4d& T )
  * @brief Converts a 4x4 homogeneous transformation matrix into a 4-vector quaternion
  * and a 3-vector displacement vector
  * 
- * @param[in] T Matrix4d T, the homogeneous transformation matrix. 
+ * @param[in] T Hgt_t T, the homogeneous transformation matrix. 
  * @param[out] quat The output quaterneon (x,y,z,w)
  * @param[out] d The output displacement vector (x,y,z)
  */
-void hgt2quatpos( const Matrix4d& T, Vector4d& quat, Vector3d& d)
+void hgt2quatpos( const Hgt_t& T, Quaternion_t& quat, Point3_t& d)
 {
     // Extract the rotation matrix from the homogeneous transformation matrix
-    Matrix3d R = T.block<3,3>(0,0);
+    Rotation_t R = T.block<3,3>(0,0);
 
     // Convert the rotation matrix to a quaternion, normalize it
     Quaterniond q(R);
@@ -147,11 +149,11 @@ void hgt2quatpos( const Matrix4d& T, Vector4d& quat, Vector3d& d)
  * @brief Converts several 4x4 homogeneous transformation matrix into a matrix of 
  * 4-vector quaternions and 3-vector displacement vectors
  * 
- * @param[in] T Matrix<double,4*N,4> T, the homogeneous transformation matrix. 
- * @param[out] quat Matrix<double,4,N> The output quaterneon (x,y,z,w)
- * @param[out] d Matrix<double,3,N> The output displacement vector (x,y,z)
+ * @param[in] T HgtArray_t T, the homogeneous transformation matrix. 
+ * @param[out] quat QuaternionArray_t The output quaterneon (x,y,z,w)
+ * @param[out] d Point3Array_t The output displacement vector (x,y,z)
  */
-void hgt2quatpos( const Matrix<double,Dynamic,4>& T, Matrix<double,4,Dynamic>& quat, Matrix<double,3,Dynamic>& d)
+void hgt2quatpos( const HgtArray_t<Dynamic>& T, QuaternionArray_t<Dynamic>& quat, Point3Array_t<Dynamic>& d)
 {
     // Get the number of transformations
     int N = T.rows() / 4;
@@ -162,7 +164,8 @@ void hgt2quatpos( const Matrix<double,Dynamic,4>& T, Matrix<double,4,Dynamic>& q
     // Iterate over each transformation
     for(int i = 0; i < N; ++i) {
         // Init and compute results
-        Vector3d d_i; Vector4d quat_i;
+        Point3_t d_i; 
+        Quaternion_t quat_i;
         quik::geometry::hgt2quatpos( T.middleRows<4>(4*i), quat_i, d_i);
 
         // Store the results
@@ -177,15 +180,15 @@ void hgt2quatpos( const Matrix<double,Dynamic,4>& T, Matrix<double,4,Dynamic>& q
  * @brief Converts a 4-vector quaternion and a 3-vector displacement vector
  * to a 4x4 homogeneous transformation matrix.
  * 
- * @param[in] quat The input quaterneon (x,y,z,w)
- * @param[in] d The input displacement vector (x,y,z)
- * @param[out] T Matrix4d T, the output homogeneous transformation matrix. 
+ * @param[in] quat Quaternion_t The input quaterneon (x,y,z,w)
+ * @param[in] d Point3_t The input displacement vector (x,y,z)
+ * @param[out] T Hgt_t T, the output homogeneous transformation matrix. 
  */
-void quatpos2hgt( const Vector4d& quat, const Vector3d& d, Matrix4d& T)
+void quatpos2hgt( const Quaternion_t& quat, const Point3_t& d, Hgt_t& T)
 {
     // Convert quaternion to rotation matrix
     Quaterniond quaternion(quat(3), quat(0), quat(1), quat(2));
-    Matrix3d rotation = quaternion.normalized().toRotationMatrix();
+    Rotation_t rotation = quaternion.normalized().toRotationMatrix();
 
     // Assign transform
     T.block<3,3>(0,0) = rotation;
@@ -197,11 +200,11 @@ void quatpos2hgt( const Vector4d& quat, const Vector3d& d, Matrix4d& T)
  * @brief Converts several 4-vector quaternions and 3-vector displacement vectors
  * to 4x4 homogeneous transformation matrices (vertically stacked)..
  * 
- * @param[in] quat Matrix<double,4,N> The input quaterneon (x,y,z,w)
- * @param[in] d Matrix<double,3,N> The input displacement vector (x,y,z)
- * @param[out] T Matrix<double,4*N,4> T, the output homogeneous transformation matrix. 
+ * @param[in] quat QuaternionArray_t<N> The input quaterneon (x,y,z,w)
+ * @param[in] d Point3Array_t<N> The input displacement vector (x,y,z)
+ * @param[out] T HgtArray_t<N> T, the output homogeneous transformation matrix. 
  */
-void quatpos2hgt( const Matrix<double,4,Dynamic>& quat, const Matrix<double,3,Dynamic>& d, Matrix<double,Dynamic,4>& T)
+void quatpos2hgt( const QuaternionArray_t<Dynamic>& quat, const Point3Array_t<Dynamic>& d, HgtArray_t<Dynamic>& T)
 {
     int N = quat.cols();
 
@@ -222,7 +225,7 @@ void quatpos2hgt( const Matrix<double,4,Dynamic>& quat, const Matrix<double,3,Dy
  * @param T The matrix
  * @return bool
  */
-bool isRotationMatrix(const Matrix3d &R, double tolerance) {
+bool isRotationMatrix(const Rotation_t &R, double tolerance) {
 
     // Check if is orthogonal (R*R_transpose = I)
     if (! (R * R.transpose()).isApprox(Matrix3d::Identity(), tolerance)) return false;
@@ -240,7 +243,7 @@ bool isRotationMatrix(const Matrix3d &R, double tolerance) {
  * @param T The matrix
  * @return bool
  */
-bool ishgt(const Matrix4d &T, double tolerance) {
+bool ishgt(const Hgt_t &T, double tolerance) {
     // Check if last row is [0, 0, 0, 1]
     if (!T.row(3).transpose().isApprox(Vector4d(0, 0, 0, 1), tolerance)) return false;
 

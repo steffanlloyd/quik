@@ -20,6 +20,7 @@
 #pragma once
 
 #include "Eigen/Dense"
+#include "quik/types.hpp"
 #include "quik/IKSolver.hpp"
 #include "quik/Robot.hpp"
 #include "quik/geometry.hpp"
@@ -29,6 +30,7 @@
 #include "quik/srv/jacobian_service.hpp"
 
 using namespace Eigen;
+using namespace quik;
 
 namespace quik{
 namespace ros_helpers{
@@ -47,18 +49,18 @@ namespace ros_helpers{
  * 
  * @tparam DOF The degree of freedom of the robot. Defaults to Dynamic if not provided.
  * @param node The node to draw parameters from
- * @return quik::Robot<Dynamic> 
+ * @return Robot<Dynamic> 
  */
 // template<int DOF=Dynamic>
-// quik::Robot<DOF> robotFromNodeParameters(rclcpp::Node& node);
+// Robot<DOF> robotFromNodeParameters(rclcpp::Node& node);
 template<int DOF=Dynamic>
-quik::Robot<DOF> robotFromNodeParameters(rclcpp::Node& node)
+Robot<DOF> robotFromNodeParameters(rclcpp::Node& node)
 {
     // Define some helper functions
     // Function to parse parameter into a Matrix4d
     auto parseMatrix4d_ = [](const std::vector<double>& values) {
         if (values.size() != 16) throw std::runtime_error("Invalid size for 4x4 matrix");
-        Matrix4d matrix;
+        Hgt_t matrix;
         for (int i = 0; i < 4; ++i) {
             for (int j = 0; j < 4; ++j) {
                 matrix(i, j) = values[i * 4 + j];
@@ -71,8 +73,8 @@ quik::Robot<DOF> robotFromNodeParameters(rclcpp::Node& node)
     std::vector<double> dh_param = node.declare_parameter("dh", std::vector<double>{-1.0});
     std::vector<std::string> link_types_str = node.declare_parameter("link_types", std::vector<std::string>{"invalid"});
     std::vector<double> q_sign_double = node.declare_parameter("q_sign", std::vector<double>{-1.0});
-    Matrix4d Tbase = parseMatrix4d_(node.declare_parameter("Tbase", std::vector<double>{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}));
-    Matrix4d Ttool = parseMatrix4d_(node.declare_parameter("Ttool", std::vector<double>{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}));
+    Hgt_t Tbase = parseMatrix4d_(node.declare_parameter("Tbase", std::vector<double>{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}));
+    Hgt_t Ttool = parseMatrix4d_(node.declare_parameter("Ttool", std::vector<double>{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}));
 
     // Check if parameters are still at their default (invalid) values
     if (dh_param.size() == 1 && dh_param[0] == -1.0)
@@ -95,18 +97,18 @@ quik::Robot<DOF> robotFromNodeParameters(rclcpp::Node& node)
 
     // Get Robot and IKSolver arguments, parse them into Eigen objects
     // DH Parameters
-    Matrix<double, DOF, 4> DH = Map<Matrix<double, 4, DOF>>(dh_param.data(), 4, dof).transpose();
+    Matrix<double,DOF,4> DH = Map<Matrix<double,4,DOF>>(dh_param.data(), 4, dof).transpose();
 
     // Link types
-    std::vector<quik::JOINTTYPE_t> link_types_data;
-    for (const auto& lt : link_types_str) link_types_data.push_back( quik::str2jointtype(lt)); // Convert from string to JOINTTYPE_t
-    Vector<quik::JOINTTYPE_t,DOF> link_types = Map<Vector<quik::JOINTTYPE_t,DOF>, Unaligned>(link_types_data.data(), link_types_data.size());
+    std::vector<JointType_t> link_types_data;
+    for (const auto& lt : link_types_str) link_types_data.push_back( quik::str2jointtype(lt)); // Convert from string to JointType_t
+    Vector<JointType_t,DOF> link_types = Map<Vector<JointType_t,DOF>, Unaligned>(link_types_data.data(), link_types_data.size());
 
     // Q sign
     Vector<double,DOF> q_sign = Eigen::Map<VectorXd>(q_sign_double.data(), q_sign_double.size());
 
     // Build robot
-    return quik::Robot<DOF>(
+    return Robot<DOF>(
         DH,
         link_types,
         q_sign,
@@ -122,7 +124,6 @@ quik::Robot<DOF> robotFromNodeParameters(rclcpp::Node& node)
  *   * algorithm [ALGORITHM_t]: The algorithm to use
  *       ALGORITHM_QUIK - QuIK
  *       ALGORITHM_NR - Newton-Raphson or Levenberg-Marquardt
- *       ALGORITHM_BFGS - BFGS
  *       Default: ALGORITHM_QUIK.
  *   * exit_tolerance [double]: The exit tolerance on the norm of the
  *       error. Default: 1e-12.
@@ -146,27 +147,24 @@ quik::Robot<DOF> robotFromNodeParameters(rclcpp::Node& node)
  *       in a single step. Ignored for BFGS algorithm. Default: 0.3.
  *   * max_angular_step_size [double]: An upper limit of the error step
  *       in a single step. Ignored for BFGS algorithm. Default: 1.
- *   * armijo_sigma [double]: The sigma value used in armijo's
- *       rule, for line search in the BFGS method. Default: 1e-5
- *   * armijo_beta [double]: The beta value used in armijo's
- *       rule, for line search in the BFGS method. Default: 0.5
  * 
  * @tparam DOF The degree of freedom of the robot. Defaults to Dynamic if not provided.
  * @param node The node (passed as reference)
  * @param R The robot object (shared pointer)
- * @return quik::IKSolver<Dynamic> 
+ * @return IKSolver<Dynamic> 
  */
 // template<int DOF=Dynamic>
-// quik::IKSolver<DOF> IKSolverFromNodeParameters(
+// IKSolver<DOF> IKSolverFromNodeParameters(
 //     rclcpp::Node& node,
-//     const std::shared_ptr<quik::Robot<DOF>> R);
+//     const std::shared_ptr<Robot<DOF>> R);
 template<int DOF=Dynamic>
-quik::IKSolver<DOF> IKSolverFromNodeParameters(
+IKSolver<DOF> IKSolverFromNodeParameters(
     rclcpp::Node& node,
-    const std::shared_ptr<quik::Robot<DOF>> R)
+    const std::shared_ptr<Robot<DOF>> R)
 {
-    return quik::IKSolver<DOF>(
+    return IKSolver<DOF>(
         R,
+        std::make_shared(new WorldConstraint()),
         node.declare_parameter("max_iterations", 200),
         quik::str2algorithm(node.declare_parameter("algorithm", "ALGORITHM_QUIK")),
         node.declare_parameter("exit_tolerance", 1e-12),
@@ -176,9 +174,7 @@ quik::IKSolver<DOF> IKSolverFromNodeParameters(
         node.declare_parameter("max_gradient_fails", 80),
         node.declare_parameter("lambda_squared", 1e-10),
         node.declare_parameter("max_linear_step_size", -1.0),
-        node.declare_parameter("max_angular_step_size", 1.0),
-        node.declare_parameter("armijo_sigma", 1e-5),
-        node.declare_parameter("armijo_beta", 0.5)
+        node.declare_parameter("max_angular_step_size", 1.0))
     );
 
 }
@@ -198,7 +194,7 @@ void ik_service_handler_(
     const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<quik::srv::IKService::Request> request,
     const std::shared_ptr<quik::srv::IKService::Response> response,
-    const std::shared_ptr<quik::IKSolver<Dynamic>> IKS);
+    const std::shared_ptr<IKSolver<Dynamic>> IKS);
 
 /**
  * @brief Handles the forward kinematics service requests
@@ -214,7 +210,7 @@ void fk_service_handler_(
     const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<quik::srv::FKService::Request> request,
     const std::shared_ptr<quik::srv::FKService::Response> response,
-    const std::shared_ptr<quik::Robot<Dynamic>> R);
+    const std::shared_ptr<Robot<Dynamic>> R);
 
 
 /**
@@ -231,7 +227,7 @@ void jacobian_service_handler_(
     const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<quik::srv::JacobianService::Request> request,
     const std::shared_ptr<quik::srv::JacobianService::Response> response,
-    const std::shared_ptr<quik::Robot<Dynamic>> R);
+    const std::shared_ptr<Robot<Dynamic>> R);
 
 
 /**
@@ -241,7 +237,7 @@ void jacobian_service_handler_(
  * @param q The desired robot joint angles
  * @return std::shared_ptr<quik::srv::FKService::Request> 
  */
-std::shared_ptr<quik::srv::FKService::Request> fk_make_request(const VectorXd& q);
+std::shared_ptr<quik::srv::FKService::Request> fk_make_request(const JointState_t<Dynamic>& q);
 
 /**
  * @brief Parses an FK_service response into two eigen objects
@@ -251,25 +247,25 @@ std::shared_ptr<quik::srv::FKService::Request> fk_make_request(const VectorXd& q
  * @param[out] d The point (x,y,z)
  */
 void fk_parse_response(const quik::srv::FKService::Response::SharedPtr& response,
-    Vector4d& quat, Vector3d& d);
+    Quaternion_t& quat, Point3_t& d);
 
 /**
  * @brief Builds a jacobian request and returns the future for it.
  * 
  * @param client 
- * @param q The robot joint variables (as an Eigen::VectorXd)
+ * @param q The robot joint variables (as an JointState_t<Dynamic>)
  * @return std::shared_ptr<quik::srv::JacobianService::Request> 
  */
-std::shared_ptr<quik::srv::JacobianService::Request> jacobian_make_request(const VectorXd& q);
+std::shared_ptr<quik::srv::JacobianService::Request> jacobian_make_request(const JointState_t<Dynamic>& q);
 
 /**
  * @brief Parses the Jacobian service response into an Eigen::MatrixXD matrix
  * (of size 6xDOF).
  * 
  * @param[in] response 
- * @param[out] Eigen::MatrixXd The Jacobian matrix. Must be 6xDOF
+ * @param[out] Jacobian_t<DOF> The Jacobian matrix. Must be 6xDOF
  */
-void jacobian_parse_response(const quik::srv::JacobianService::Response::SharedPtr& response, Eigen::MatrixXd& jacobian);
+void jacobian_parse_response(const quik::srv::JacobianService::Response::SharedPtr& response, Jacobian_t<Dynamic>& jacobian);
 
 /**
  * @brief Makes an inverse kinematic service request from Eigen objects, and
@@ -282,9 +278,9 @@ void jacobian_parse_response(const quik::srv::JacobianService::Response::SharedP
  * @return std::shared_ptr<quik::srv::IKService::Request> 
  */
 std::shared_ptr<quik::srv::IKService::Request> ik_make_request(
-    const Vector4d& quat_des,
-    const Vector3d& d_des,
-    const VectorXd& q_0);
+    const Quaternion_t& quat_des,
+    const Point3_t& d_des,
+    const JointState_t<Dynamic>& q_0);
 
 /**
  * @brief Parses the inverse kinematics response into Eigen objects
@@ -297,10 +293,10 @@ std::shared_ptr<quik::srv::IKService::Request> ik_make_request(
  * @return success (true or false)
  */
 bool ik_parse_response(const quik::srv::IKService::Response::SharedPtr& response,
-    VectorXd& q_star,
-    Vector<double,6>& e_star,
+    JointState_t<Dynamic>& q_star,
+    Twist_t& e_star,
     int& iter,
-    quik::BREAKREASON_t& breakReason);
+    BreakReason_t& breakReason);
 
 } // End of quik::ros_helpers namespace
 } // End of quik namespace

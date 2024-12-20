@@ -51,20 +51,24 @@
 #pragma once
 
 #include "Eigen/Dense"
+#include "quik/types.hpp"
 #include "quik/geometry.hpp"
 #include "quik/utilities.hpp"
+#include <iostream>
+
 
 using namespace Eigen;
 using namespace std;
+using namespace quik;
 
 namespace quik{
 
-enum JOINTTYPE_t : bool {
+enum JointType_t : bool {
 	JOINT_REVOLUTE = false,
 	JOINT_PRISMATIC = true
 };
 
-inline std::string jointtype2str(quik::JOINTTYPE_t jointType) {
+inline std::string jointtype2str(JointType_t jointType) {
     switch(jointType) {
         case quik::JOINT_REVOLUTE: return "JOINT_REVOLUTE";
         case quik::JOINT_PRISMATIC: return "JOINT_PRISMATIC";
@@ -72,7 +76,7 @@ inline std::string jointtype2str(quik::JOINTTYPE_t jointType) {
     }
 };
 
-inline quik::JOINTTYPE_t str2jointtype(std::string jointType) {
+inline JointType_t str2jointtype(std::string jointType) {
     if (jointType == "JOINT_REVOLUTE") return quik::JOINT_REVOLUTE;
     else if (jointType == "JOINT_PRISMATIC") return quik::JOINT_PRISMATIC;
     else throw std::runtime_error("Invalid JOINTTYPE string");
@@ -89,19 +93,19 @@ public:
 	//
     Array<double,DOF,4> DH;
 
-	// @brief Vector<JOINTTYPE_t,DOF> linkTypes: A vector of link types. Specify JOINT_REVOLUTE
+	// @brief Vector<JointType_t,DOF> linkTypes: A vector of link types. Specify JOINT_REVOLUTE
 	// or JOINT_PRISMATIC
-	Vector<quik::JOINTTYPE_t,DOF> linkTypes;
+	Vector<JointType_t,DOF> linkTypes;
     
 	// @brief Vector<double,6> Qsign: A vector of link direction (-1 or 1). Allows you to
 	// change the sign of the joint variable.
 	Vector<double,DOF> Qsign;
 
 	// @brief Matrix4d Tbase: Base transform (between the first and world frame).
-	Matrix4d Tbase;
+	Hgt_t Tbase;
 	
 	// @brief Matrix4d Ttool: The tool transform of the robot (between DOF'th frame and tool frame)
-	Matrix4d Ttool;
+	Hgt_t Ttool;
     
 	// The number of degrees of freedom. Assigned automatically.
 	int dof;
@@ -117,10 +121,10 @@ public:
 	 */
 	Robot(
 		Array<double,DOF,4> _DH,
-		Vector<quik::JOINTTYPE_t,DOF> _linkTypes,
+		Vector<JointType_t,DOF> _linkTypes,
     	Vector<double,DOF> _Qsign = (DOF == -1 ? VectorXd::Ones(0) : VectorXd::Ones(DOF)),
-		Matrix4d _Tbase = Matrix4d::Identity(4,4),
-		Matrix4d _Ttool = Matrix4d::Identity(4,4))
+		Hgt_t _Tbase = Matrix4d::Identity(4,4),
+		Hgt_t _Ttool = Matrix4d::Identity(4,4))
 		: DH(_DH), linkTypes(_linkTypes), Qsign(_Qsign), Tbase(_Tbase), Ttool(_Ttool)
 	{
 		this->dof = (int) this->DH.rows();
@@ -165,15 +169,15 @@ public:
 	 * OUTPUTS:
 	 * @param T The ouput transformations.
 	 */
-    void FK( const Vector<double,DOF>& Q, Matrix<double,(DOF>0?4*(DOF+1):-1),4>& T) const
+    void FK( const JointState_t<DOF>& Q, JointHgtArray_t<DOF>& T) const
 	{
 		// Initialize data
 		Array<double,1,4> DH_k;
-		Matrix4d Ak;
+		Hgt_t Ak;
 		double stk, ctk, sak, cak, ak, dk;
 			
 		// Iterate over joints
-		for (int k=0; k<this->dof; k++){
+		for (int k=0; k<(this->dof); k++){
 			
 			// Get DH variables for row
 			DH_k = this->DH.row(k);
@@ -216,10 +220,9 @@ public:
 	 * @param[in] Q The input joint angles
 	 * @param[out] T The tranformation matrices for the final link
 	 */
-	void FKn(const Vector<double,DOF> &Q, Matrix4d& Tn, int frame=-1) const
+	void FKn(const JointState_t<DOF>& Q, Hgt_t& Tn, int frame=-1) const
 	{
-		constexpr int DOF4 = (DOF>0) ? (DOF+1)*4 : -1;
-		Matrix<double,DOF4,4> Ti((this->dof+1)*4,4);
+		JointHgtArray_t<DOF> Ti((this->dof+1)*4,4);
 		this->FK( Q, Ti );
 
 		// If frame is -1 (default), return tool frame
@@ -243,10 +246,10 @@ public:
 	 * @param[in] frame=-1 int The frame to compute the transform for. Put a negative value for the tool
 	 * frame.
 	 */
-	void FKn(const Vector<double,DOF> &Q, Vector4d& quat, Vector3d& d, int frame=-1) const
+	void FKn(const JointState_t<DOF>& Q, Quaternion_t& quat, Point3_t& d, int frame=-1) const
 	{
 		// Call forward kinematics to a transform
-		Matrix4d T;
+		Hgt_t T;
 		this->FKn(Q, T, frame);
 
 		// Convert to a quaternion and point
@@ -264,11 +267,10 @@ public:
 	 * @param[in] includeTool  Whether or not to include the tool transform in the calculations
 	 * Default: true.
 	 */
-	void jacobian( const Vector<double, DOF>& Q, Matrix<double, 6, DOF>& J, bool includeTool = true) const
+	void jacobian( const JointState_t<DOF>& Q, Jacobian_t<DOF>& J, bool includeTool = true) const
 	{
 		// Initialize the outputs
-        constexpr int DOF4 = DOF>0 ? (DOF+1)*4 : -1;
-        Matrix<double,DOF4,4> T((this->dof+1)*4, 4); // Holds the forward kinematics for each joint
+        JointHgtArray_t<DOF> T((this->dof+1)*4, 4); // Holds the forward kinematics for each joint
 
 		// Update T with forward kinematics
 		this->FK( Q, T );
@@ -291,7 +293,7 @@ public:
 	 * @param[in] includeTool Whether or not to include the tool transform in the calculations
 	 * Default: true.
 	 */
-	void jacobian( const Matrix<double,(DOF>0?4*(DOF+1):-1),4>& T, Matrix<double,6,DOF>& J, bool includeTool = true) const
+	void jacobian( const JointHgtArray_t<DOF>& T, Jacobian_t<DOF>& J, bool includeTool = true) const
 	{
 		// Initialize some variables
 		Vector3d z_im1, o_im1, o_n;
@@ -340,7 +342,7 @@ public:
 	 * @param[in] dQ The delta joint variables vector
 	 * @param[out] A The resulting Hessian product, to store values into (will be modified).
 	 */
-	void hessianProduct( const Matrix<double,6,DOF>& J, const Vector<double,DOF>& dQ, Matrix<double,6,DOF>& A) const
+	void hessianProduct( const Jacobian_t<DOF>& J, const JointState_t<DOF>& dQ, Jacobian_t<DOF>& A) const
 	{
 		Vector3d cp, jvk, jwk, Aw_k_sum;
 

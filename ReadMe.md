@@ -1,4 +1,4 @@
-# QuIK: An ultra-fast and highly robust kinematics library for C++ and ROS2 using DH parameters
+# QuIK: An ultra-fast and highly robust kinematics library for C++ or ROS2 using DH parameters
 
 QuIK is a hyper-efficient C++ kinematics library for serial manipulators. It is based on the novel QuIK algorithm, [published in IEEE-TRO](http://dx.doi.org/10.1109/TRO.2022.3162954), that uses 3rd-order velocity kinematics to solve generalized inverse kinematics significantly faster, and significantly more reliably that existing inverse kinematics packages. QuIK uses the Denevit-Hartenberg convention for kinematics, which is readily available for most manipulators and results in a more computationally efficient formulation of kinematics.
 
@@ -21,6 +21,8 @@ This repository includes the code to use the QuIK algorithm in ROS2, or just in 
 ## What this repository does and does not do
 
 This repository allows for highly efficient robot kinematics, and in particular inverse kinematics. It is designed for serial manipulators, i.e. manipulators with a single kinematic chain that does not branch. 
+
+It will perform:
 
  - Highly efficient and robust inverse kinematics against 6-DOF constraints in world frame. E.g. a target tool point and rotation is specified, and joint angles are returned.
  - Forward kinematics

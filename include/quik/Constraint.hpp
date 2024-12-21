@@ -1,12 +1,11 @@
 #pragma once
 
-#include <memory>
-#include <iostream>
 #include "Eigen/Dense"
+#include "quik/types.hpp"
 #include "quik/Robot.hpp"
-#include "quik/geometry.hpp"
 
 using namespace Eigen;
+using namespace quik;
 using namespace std;
 
 namespace quik{
@@ -17,8 +16,7 @@ class Constraint
 public:
     Constraint(){}
     
-    template<d>
-    virtual Matrix<double,m,d> transform(Matrix<double,6,d> A) = 0;
+    virtual Matrix<double,m,6> get_transform(const Hgt_t& Tn) = 0;
 };
 
 class WorldConstraint : public Constraint<6>
@@ -26,10 +24,9 @@ class WorldConstraint : public Constraint<6>
 public:
     WorldConstraint(){}
 
-    template<d>
-    Matrix<double,6,d> transform(Matrix<double,6,d> A) override
+    Matrix<double,6,6> get_transform(const Hgt_t&) override
     {
-        return A;
+        return Matrix<double,6,6>::Identity();
     }
 };
 

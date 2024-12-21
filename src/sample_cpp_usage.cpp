@@ -52,9 +52,9 @@ auto R = std::make_shared<Robot<6>>(
 );
 
 // Define the IK options
-const IKSolver<6> IKS(
+const IKSolver<6,6> IKS(
     R, // The robot object (pointer)
-	std::make_shared(new WorldConstraint()),
+	std::make_shared<WorldConstraint>(),
     200, // max number of iterations
     ALGORITHM_QUIK, // algorithm (ALGORITHM_QUIK, ALGORITHM_NR or ALGORITHM_BFGS)
     1e-12, // Exit tolerance

@@ -153,18 +153,14 @@ Robot<DOF> robotFromNodeParameters(rclcpp::Node& node)
  * @param R The robot object (shared pointer)
  * @return IKSolver<Dynamic> 
  */
-// template<int DOF=Dynamic>
-// IKSolver<DOF> IKSolverFromNodeParameters(
-//     rclcpp::Node& node,
-//     const std::shared_ptr<Robot<DOF>> R);
 template<int DOF=Dynamic>
-IKSolver<DOF> IKSolverFromNodeParameters(
+IKSolver<DOF,6> IKSolverFromNodeParameters(
     rclcpp::Node& node,
     const std::shared_ptr<Robot<DOF>> R)
 {
-    return IKSolver<DOF>(
+    return IKSolver<DOF,6>(
         R,
-        std::make_shared(new WorldConstraint()),
+        std::make_shared<WorldConstraint>(),
         node.declare_parameter("max_iterations", 200),
         quik::str2algorithm(node.declare_parameter("algorithm", "ALGORITHM_QUIK")),
         node.declare_parameter("exit_tolerance", 1e-12),
@@ -174,60 +170,10 @@ IKSolver<DOF> IKSolverFromNodeParameters(
         node.declare_parameter("max_gradient_fails", 80),
         node.declare_parameter("lambda_squared", 1e-10),
         node.declare_parameter("max_linear_step_size", -1.0),
-        node.declare_parameter("max_angular_step_size", 1.0))
+        node.declare_parameter("max_angular_step_size", 1.0)
     );
 
 }
-
-
-/**
- * @brief Handles the inverse kinematics service requests
- * 
- * @param request_header 
- * @param request 
- * @param response 
- * @param IKS The IKSolver object (passed as a shared pointer) to solve the inverse kinematics
- * @param logger The rclcpp logger to log errors to, if applicable.
- *               Defaults to an rclcpp logger with name jacobian_service_handler
- */
-void ik_service_handler_(
-    const std::shared_ptr<rmw_request_id_t> request_header,
-    const std::shared_ptr<quik::srv::IKService::Request> request,
-    const std::shared_ptr<quik::srv::IKService::Response> response,
-    const std::shared_ptr<IKSolver<Dynamic>> IKS);
-
-/**
- * @brief Handles the forward kinematics service requests
- * 
- * @param request_header 
- * @param request 
- * @param response 
- * @param R The Robot object (passed as a shared pointer) to solve the forward kinematics
- * @param logger The rclcpp logger to log errors to, if applicable.
- *               Defaults to an rclcpp logger with name jacobian_service_handler
- */
-void fk_service_handler_(
-    const std::shared_ptr<rmw_request_id_t> request_header,
-    const std::shared_ptr<quik::srv::FKService::Request> request,
-    const std::shared_ptr<quik::srv::FKService::Response> response,
-    const std::shared_ptr<Robot<Dynamic>> R);
-
-
-/**
- * @brief Handles the Jacobian service requests
- * 
- * @param request_header 
- * @param request 
- * @param response 
- * @param IKS The Robot object (passed as a shared pointer) to solve the jacobian kinematics
- * @param logger The rclcpp logger to log errors to, if applicable.
- *               Defaults to an rclcpp logger with name jacobian_service_handler
- */
-void jacobian_service_handler_(
-    const std::shared_ptr<rmw_request_id_t> request_header,
-    const std::shared_ptr<quik::srv::JacobianService::Request> request,
-    const std::shared_ptr<quik::srv::JacobianService::Response> response,
-    const std::shared_ptr<Robot<Dynamic>> R);
 
 
 /**

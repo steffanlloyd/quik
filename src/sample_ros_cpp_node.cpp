@@ -43,7 +43,7 @@ public:
 
         // Build IKSolver and declare parameters
         // IKSolver in this case must also be templated with DOF=6.
-        this->IKS = std::make_shared<IKSolver<DOF>>(quik::ros_helpers::IKSolverFromNodeParameters<DOF>(*this, this->R));
+        this->IKS = std::make_shared<IKSolver<DOF,6>>(quik::ros_helpers::IKSolverFromNodeParameters<DOF>(*this, this->R));
           RCLCPP_INFO(this->get_logger(), "Built IKSolver object. Configuration is:");
         this->IKS->printOptions();
 
@@ -55,7 +55,7 @@ public:
         RCLCPP_INFO(this->get_logger(), "Set up kinematics loop to run every 5 seconds.");
     }
 
-    std::shared_ptr<IKSolver<DOF>> IKS;
+    std::shared_ptr<IKSolver<DOF,6>> IKS;
     std::shared_ptr<Robot<DOF>> R;
 
 private:

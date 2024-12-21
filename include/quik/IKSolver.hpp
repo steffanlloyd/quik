@@ -176,7 +176,7 @@ public:
     // Constructor
 	IKSolver(
         std::shared_ptr<Robot<DOF>> _R,
-        std::shared_ptr<Constraint<m>> _C = std::make_shared(new WorldConstraint()),
+        std::shared_ptr<WorldConstraint> _C = std::make_shared<WorldConstraint>(),
         int _max_iterations = 100,
         Algorithm_t _algorithm = ALGORITHM_QUIK,
         double _exit_tolerance = 1e-12,
@@ -253,20 +253,21 @@ public:
         Twist_t             e,          // The error vector.
                             e_clamp;    // The clamped error vector    
         Jacobian_t<DOF>     J(6, this->R->dof), // Holds the robot jacobian
-                            A;          // Holds the Hessian product term for the QuIK algorithm
+                            A(6, this->R->dof); // Holds the Hessian product term for the QuIK algorithm
+        Matrix<double,m,6>  B;          // Transformation matrix for constraint
         Vector<double,m>    e_tilde,    // The transformed error
                             e_clamp_tilde; // the clamped transformed error
-        Matrix<double,m,DOF> J_tilde;   // The transformed Jacobian
-        Matrix<double,m,DOF> A_tilde;   // The transformed Hessian multiplication
-        Matrix<double,DOF,DOF> H_i;     // H variable, used in bfgs algorithm
+        Matrix<double,m,DOF> J_tilde(m, this->R->dof);   // The transformed Jacobian
+        Matrix<double,m,DOF> A_tilde(m, this->R->dof);   // The transformed Hessian multiplication
         int 	grad_fail_counter = 0,  // Holds a count of the times the gradient has failed
                 grad_fail_counter_total = 0;
         double 	e_norm = 0,             // Holds the normed error
                 e_prev_norm = 1e10,     // Holds the normed error (previous iteration)
                 error_relImprovement = 0;
 
-        // Init variable that can store all the transforms for each frame of orobt
+        // Init variable that can store all the transforms for each frame of robot
         JointHgtArray_t<DOF> T((this->R->dof+1)*4, 4); // Holds the forward kinematics for each joint
+        Hgt_t Tn; // Holds the tool transform
 
         // Preassign some values
         e.fill(0);
@@ -280,20 +281,22 @@ public:
             // Get error, forward kinematics and jacobian
             // Update T with forward kinematics
             this->R->FK( Q, T );
+            Tn = T.template bottomRows<4>(); // Assign tool frame
             
             // Get jacobian, store it in J
             this->R->jacobian(T, J, true);
             
             // Update error between target and current error, store in e
-            geometry::hgtDiff( T.template bottomRows<4>(), Twt, e );
+            geometry::hgtDiff( Tn, Twt, e );
 
             // Get the clamped error
             this->clampMag(e, e_clamp);
 
             // Transform the error and jacobian
-            e_tilde = this->C->transform<1>(e);
-            e_clamp_tilde = this->C->transform<1>(e_clamp);
-            J_tilde = this->C->transform<DOF>(J);
+            B = this->C->get_transform(Tn);
+            e_tilde = B*e;
+            e_clamp_tilde = B*e_clamp;
+            J_tilde = B*J;
             
             // Calculate norm
             e_norm = e_tilde.norm();
@@ -349,8 +352,8 @@ public:
                     // Get gradient product, this gets added automatically since A holds J
                     this->R->hessianProduct( J, dQ, A );
 
-                    // Transform A again
-                    A_tilde = this->C->transform<DOF>(A);
+                    // Transform A to transformed constraint frame
+                    A_tilde = B*A;
                                         
                     // Resolve
                     this->lsolve(A_tilde, e_tilde, dQ);
@@ -563,18 +566,18 @@ public:
      * @param[out] x The solution vector, passed as reference (DOF-vector)
      */
     void lsolve(
-        const Matrix<double,6,DOF>& A,
-		const Vector<double,6>& b,
+        const Matrix<double,m,DOF>& A,
+		const Vector<double,m>& b,
 		Vector<double,DOF>& x) const
     {
         // Form covariance matrix
-        Matrix<double, 6, 6> Astar = A*A.transpose();
+        Matrix<double, m, m> Astar = A*A.transpose();
         
         // If a damping term is given, add it to the diagonals
         if (this->lambda_squared > 0) Astar.diagonal().array() += this->lambda_squared;
         
         // Do LLT decomposition, since matrix is guaranteed to be positive definite.
-        LLT<Matrix<double,6,6>> Astar_llt(Astar);
+        LLT<Matrix<double,m,m>> Astar_llt(Astar);
             
         // Solve
         x = A.transpose() * ( Astar_llt.solve(b) );

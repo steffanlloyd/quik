@@ -39,7 +39,7 @@ public:
 
         // Build IKSolver and declare parameters
         this->IKS = std::make_shared<IKSolver<Dynamic,6>>(ros_helpers::IKSolverFromNodeParameters<Dynamic>(*this, this->R));
-          RCLCPP_INFO(this->get_logger(), "Built IKSolver object. Configuration is:");
+        RCLCPP_INFO(this->get_logger(), "Built IKSolver object. Configuration is:");
         this->IKS->printOptions();
 
         // Declare services

@@ -160,7 +160,7 @@ IKSolver<DOF,6> IKSolverFromNodeParameters(
 {
     return IKSolver<DOF,6>(
         R,
-        std::make_shared<WorldConstraint>(),
+        std::make_shared<WorldConstraint<6>>(),
         node.declare_parameter("max_iterations", 200),
         quik::str2algorithm(node.declare_parameter("algorithm", "ALGORITHM_QUIK")),
         node.declare_parameter("exit_tolerance", 1e-12),

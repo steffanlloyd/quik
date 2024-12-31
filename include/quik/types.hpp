@@ -14,6 +14,8 @@ using MatrixArray_t = Matrix<double, (N>0 ? N*n : -1), m>;
 
 using Hgt_t = Matrix4d;
 
+using Adjoint_t = Matrix<double,6,6>;
+
 using Rotation_t = Matrix3d;
 
 template<int N=Dynamic>

@@ -110,5 +110,50 @@ bool isRotationMatrix(const Rotation_t &R, double tolerance = 1e-6);
  */
 bool ishgt(const Hgt_t &T, double tolerance = 1e-6);
 
+/**
+ * @brief Computes the skew-symmetric 3x3 matrix for a vector
+ * 
+ * @param w The vector
+ * @return Matrix3d The skew-symmetric matrix
+ */
+Matrix3d skew(Vector3d w);
+
+/**
+ * @brief Computes the 3-vector corresponding to a 3x3 skew-symmetric matrix
+ * 
+ * @param S The skew-symmetric matrix
+ * @param check_tolerance The tolerance for checking that the input is actually skew-symmetric.
+ * Default 1e-6. Give a negative value to skip checking (faster). 
+ * @return Vector3d The 3-vector
+ */
+Vector3d vex(Matrix3d S, double check_tolerance = 1e-6);
+
+/**
+ * @brief Creates an adjoint matrix from a rotation matrix. Optionaly inverts the transform
+ * 
+ * @param R The rotation matrix
+ * @param invert Flag to invert. Default: false.
+ * @return Adjoint_t The adjoint matrix
+ */
+Adjoint_t adjoint(const Rotation_t& R, bool invert = false);
+
+/**
+ * @brief Creates an adjoint matrix from a pure displacement. Optionally inverts it.
+ * 
+ * @param d The displacement vector
+ * @param invert Flag to invert (default: false)
+ * @return Adjoint_t 
+ */
+Adjoint_t adjoint(const Vector3d& d, bool invert = false);
+
+/**
+ * @brief Creates an adjoint matrix from a transformation matrix. Optionally inverts it.
+ * 
+ * @param T The homogeneous transform
+ * @param invert The invert flag (default: false)
+ * @return Adjoint_t 
+ */
+Adjoint_t adjoint(const Hgt_t& T, bool invert = false);
+
 } // End of namespace Geometry
 } // End of namespace quik

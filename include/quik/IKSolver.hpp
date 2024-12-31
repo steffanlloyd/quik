@@ -176,7 +176,7 @@ public:
     // Constructor
 	IKSolver(
         std::shared_ptr<Robot<DOF>> _R,
-        std::shared_ptr<WorldConstraint> _C = std::make_shared<WorldConstraint>(),
+        std::shared_ptr<Constraint<m>> _C = std::make_shared<WorldConstraint<6>>(),
         int _max_iterations = 100,
         Algorithm_t _algorithm = ALGORITHM_QUIK,
         double _exit_tolerance = 1e-12,
@@ -454,8 +454,6 @@ public:
         // Get size of problem
         int N = (int) Q0.cols();
 
-        std::cout<<"Test1" << " " <<Twt.rows()<<" "<<N<<std::endl;
-
         // Ensure inputs are properly given
         if(Twt.rows() != 4*N) throw std::runtime_error("Number of rows in Twt should be 4*N (where N is the number of poses to solve).");
         if(Q_star.cols() != N) throw std::runtime_error("Q_star must be a <DOFxN> matrix (where N is the number of poses to solve).");
@@ -554,8 +552,6 @@ public:
         if (ei_ang_norm2 > (this->max_angular_step_size * this->max_angular_step_size))
             e_clamp.tail<3>() *= this->max_angular_step_size / sqrt(ei_ang_norm2);
 
-        // Warning for next use
-        cout << "WARNING: clampMag function needs testing" << endl;
     } // End of clampMag()
 
     /**

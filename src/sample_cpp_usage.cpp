@@ -51,12 +51,15 @@ auto R = std::make_shared<Robot<6>>(
 	Matrix4d::Identity(4,4)
 );
 
+constexpr int m = 6;
+auto C = std::make_shared<WorldConstraint<m>>(WorldConstraint<m>::Partial({0,1,2,3,4,5}));
+
 // Define the IK options
-const IKSolver<6,6> IKS(
+const IKSolver<6,m> IKS(
     R, // The robot object (pointer)
-	std::make_shared<WorldConstraint>(),
+	C, // The constraint object (pointer)
     200, // max number of iterations
-    ALGORITHM_QUIK, // algorithm (ALGORITHM_QUIK, ALGORITHM_NR or ALGORITHM_BFGS)
+    ALGORITHM_QUIK, // algorithm (ALGORITHM_QUIK, ALGORITHM_NR)
     1e-12, // Exit tolerance
     1e-14, // Minimum step tolerance
     0.05, // iteration-to-iteration improvement tolerance (0.05 = 5% relative improvement)
@@ -71,7 +74,7 @@ int main()
 {
 	
 	// Initilize variables
-	int N = 10; // Number of poses to generate
+	int N = 5; // Number of poses to generate
 	int DOF = R->dof;
 	JointStateArray_t<6, Dynamic> 	Q(DOF, N),	    // True joint angles
                                 	Q0(DOF, N),	    // Initial guess of joint angles
@@ -116,9 +119,11 @@ int main()
 	cout << Q << endl << endl;
 	cout << "The final joint angles are: " << endl;
 	cout << Q_star << endl << endl;
+	cout << "The errors are:" << endl;
+	cout << e_star << endl << endl;
 	cout << "Final normed error is: " << endl << e_star.array().square().colwise().sum().sqrt() << endl << endl;
 	cout << "Break reason is: " << endl;
-    for (const auto& reason : breakReason) cout << reason << ' ';
+    for (const auto& reason : breakReason) cout << breakreason2str(reason) << ' ';
     cout << endl;
 	cout << "Number of iterations: " << endl;
     for (const auto& iter_i : iter) cout << iter_i << ' ';

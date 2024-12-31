@@ -225,7 +225,8 @@ void quatpos2hgt( const QuaternionArray_t<Dynamic>& quat, const Point3Array_t<Dy
  * @param T The matrix
  * @return bool
  */
-bool isRotationMatrix(const Rotation_t &R, double tolerance) {
+bool isRotationMatrix(const Rotation_t &R, double tolerance)
+{
 
     // Check if is orthogonal (R*R_transpose = I)
     if (! (R * R.transpose()).isApprox(Matrix3d::Identity(), tolerance)) return false;
@@ -243,12 +244,122 @@ bool isRotationMatrix(const Rotation_t &R, double tolerance) {
  * @param T The matrix
  * @return bool
  */
-bool ishgt(const Hgt_t &T, double tolerance) {
+bool ishgt(const Hgt_t &T, double tolerance)
+{
     // Check if last row is [0, 0, 0, 1]
     if (!T.row(3).transpose().isApprox(Vector4d(0, 0, 0, 1), tolerance)) return false;
 
     // Check that rotation part is rotation matrix
     return quik::geometry::isRotationMatrix(T.block<3,3>(0,0));
+}
+
+/**
+ * @brief Computes the skew-symmetric 3x3 matrix for a vector
+ * 
+ * @param w The vector
+ * @return Matrix3d The skew-symmetric matrix
+ */
+Matrix3d skew(Vector3d w) 
+{
+    Matrix3d S;
+
+    S << 0, -w(2), w(1),
+         w(2), 0, -w(0),
+         -w(1), w(0), 0;
+
+    return S;
+}
+
+/**
+ * @brief Computes the 3-vector corresponding to a 3x3 skew-symmetric matrix
+ * 
+ * @param S The skew-symmetric matrix
+ * @param check_tolerance The tolerance for checking that the input is actually skew-symmetric.
+ * Default 1e-6. Give a negative value to skip checking (faster). 
+ * @return Vector3d The 3-vector
+ */
+Vector3d vex(Matrix3d S, double check_tolerance){
+
+    if (S.rows() != S.cols()) throw std::invalid_argument("S must be square!");
+    if (S.rows() != 3) throw std::invalid_argument("S must be 3x3");
+
+    if (check_tolerance > 0) {
+        Matrix3d sum = S + S.transpose();
+        if (sum.array().abs().maxCoeff() > check_tolerance) {
+            throw std::runtime_error("Input matrix is not skew symmetric within a tolerance of " + std::to_string(check_tolerance) + "! Be careful with results!");
+        }
+    }
+
+    Vector3d w1(S(2, 1), S(0, 2), S(1, 0));
+    Vector3d w2(S(1, 2), S(2, 0), S(0, 1));
+
+    return (w1 - w2) / 2;
+}
+
+
+/**
+ * @brief Creates an adjoint matrix from a rotation matrix. Optionaly inverts the transform
+ * 
+ * @param R The rotation matrix
+ * @param invert Flag to invert. Default: false.
+ * @return Adjoint_t The adjoint matrix
+ */
+Adjoint_t adjoint(const Rotation_t& R, bool invert)
+{
+    Adjoint_t Ad;
+    Matrix3d Z = Matrix3d::Zero();
+    Rotation_t Rt = (invert) ? R.transpose() : R;
+
+    Ad <<   Rt, Z,
+            Z, Rt;
+
+    return Ad;
+}
+
+/**
+ * @brief Creates an adjoint matrix from a pure displacement. Optionally inverts it.
+ * 
+ * @param d The displacement vector
+ * @param invert Flag to invert (default: false)
+ * @return Adjoint_t 
+ */
+Adjoint_t adjoint(const Vector3d& d, bool invert)
+{
+    Adjoint_t Ad;
+    Matrix3d Z = Matrix3d::Zero();
+    Matrix3d I = Matrix3d::Identity();
+    Matrix3d S = (invert) ? geometry::skew(-d) : geometry::skew(d);
+
+    Ad <<   I, S,
+            Z, I;
+
+    return Ad;
+}
+
+/**
+ * @brief Creates an adjoint matrix from a transformation matrix. Optionally inverts it.
+ * 
+ * @param T The homogeneous transform
+ * @param invert The invert flag (default: false)
+ * @return Adjoint_t 
+ */
+Adjoint_t adjoint(const Hgt_t& T, bool invert)
+{
+    Adjoint_t Ad;
+    Matrix3d R = T.topLeftCorner(3, 3);
+    Vector3d p = T.topRightCorner(3, 1);
+    Matrix3d S = geometry::skew(p);
+
+    if (invert) {
+        Matrix3d Rt = R.transpose();
+        Ad << Rt, -Rt * S,
+              Matrix3d::Zero(), Rt;
+    } else {
+        Ad << R, S * R,
+              Matrix3d::Zero(), R;
+    }
+
+    return Ad;
 }
 
 } // End of namespace geometry

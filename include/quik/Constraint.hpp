@@ -53,7 +53,7 @@ public:
     {
         this->validate_axes_(axes);
 
-        Adjoint_t Ad = quik::geometry::adjoint(transform);
+        Adjoint_t Ad = geometry::adjoint(transform);
 
         // Assign correct axes from adjoint
         for (size_t i = 0; i < axes.size(); ++i) {

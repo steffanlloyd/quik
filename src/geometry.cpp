@@ -166,7 +166,7 @@ void hgt2quatpos( const HgtArray_t<Dynamic>& T, QuaternionArray_t<Dynamic>& quat
         // Init and compute results
         Point3_t d_i; 
         Quaternion_t quat_i;
-        quik::geometry::hgt2quatpos( T.middleRows<4>(4*i), quat_i, d_i);
+        geometry::hgt2quatpos( T.middleRows<4>(4*i), quat_i, d_i);
 
         // Store the results
         quat.col(i) = quat_i;
@@ -214,7 +214,7 @@ void quatpos2hgt( const QuaternionArray_t<Dynamic>& quat, const Point3Array_t<Dy
     for(int i = 0; i < N; ++i) {
         Matrix4d T_i;
 
-        quik::geometry::quatpos2hgt( quat.col(i), d.col(i), T_i);
+        geometry::quatpos2hgt( quat.col(i), d.col(i), T_i);
         T.middleRows<4>(4*i) = T_i;
     }
 }
@@ -250,7 +250,7 @@ bool ishgt(const Hgt_t &T, double tolerance)
     if (!T.row(3).transpose().isApprox(Vector4d(0, 0, 0, 1), tolerance)) return false;
 
     // Check that rotation part is rotation matrix
-    return quik::geometry::isRotationMatrix(T.block<3,3>(0,0));
+    return geometry::isRotationMatrix(T.block<3,3>(0,0));
 }
 
 /**

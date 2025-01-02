@@ -63,25 +63,6 @@ using namespace quik;
 
 namespace quik{
 
-enum JointType_t : bool {
-	JOINT_REVOLUTE = false,
-	JOINT_PRISMATIC = true
-};
-
-inline std::string jointtype2str(JointType_t jointType) {
-    switch(jointType) {
-        case quik::JOINT_REVOLUTE: return "JOINT_REVOLUTE";
-        case quik::JOINT_PRISMATIC: return "JOINT_PRISMATIC";
-        default: return "UNKNOWN_JOINTTYPE";
-    }
-};
-
-inline JointType_t str2jointtype(std::string jointType) {
-    if (jointType == "JOINT_REVOLUTE") return quik::JOINT_REVOLUTE;
-    else if (jointType == "JOINT_PRISMATIC") return quik::JOINT_PRISMATIC;
-    else throw std::runtime_error("Invalid JOINTTYPE string");
-};
-
 template<int DOF=Dynamic>
 class Robot {
 public:
@@ -144,9 +125,9 @@ public:
 	 */
 	void print() const
 	{
-		cout << "R.DH:" << endl << this->DH.format(quik::utilities::CleanFmt) << endl;
-		cout << "R.Tbase: " << endl << this->Tbase.format(quik::utilities::CleanFmt) << endl;
-		cout << "R.Ttool: " << endl << this->Ttool.format(quik::utilities::CleanFmt) << endl;
+		cout << "R.DH:" << endl << this->DH.format(utilities::CleanFmt) << endl;
+		cout << "R.Tbase: " << endl << this->Tbase.format(utilities::CleanFmt) << endl;
+		cout << "R.Ttool: " << endl << this->Ttool.format(utilities::CleanFmt) << endl;
 		cout << "R.linkTypes: [";
 		for(int i = 0; i < this->linkTypes.size(); i++){
 			if (i!=0) cout << ", ";
@@ -253,7 +234,7 @@ public:
 		this->FKn(Q, T, frame);
 
 		// Convert to a quaternion and point
-        quik::geometry::hgt2quatpos(T, quat, d);
+        geometry::hgt2quatpos(T, quat, d);
 	}
 
 	/**

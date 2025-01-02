@@ -48,4 +48,29 @@ using Point3_t = Vector<double,3>;
 template <int N=Dynamic>
 using Point3Array_t = VectorArray_t<3, N>;
 
+enum BreakReason_t : uint8_t {
+    BREAKREASON_TOLERANCE = 0, // Tolerance reached
+    BREAKREASON_MIN_STEP, // minimum step size is reached
+    BREAKREASON_MAX_ITER, // Max iterations reached
+    BREAKREASON_GRAD_FAILS // Gradient failed to improve
+};
+
+enum Algorithm_t : uint8_t {
+    ALGORITHM_QUIK = 0, // Recommended: The QuIK method
+    ALGORITHM_NR, // Newton-Raphson or Levenberg-Marquardt
+};
+
+enum JointType_t : bool {
+	JOINT_REVOLUTE = false,
+	JOINT_PRISMATIC = true
+};
+
+template <int DOF=Dynamic>
+struct IKResult {
+    JointState_t<DOF> Q_star;
+    Twist_t e_star;
+    int iter;
+    BreakReason_t breakReason;
+};
+
 };

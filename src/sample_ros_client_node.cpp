@@ -108,7 +108,7 @@ private:
                 utilities::eigen2str(q_star.transpose()).c_str());
             RCLCPP_INFO(this->get_logger(), "Normed error: %.4g", e_star.norm());
             RCLCPP_INFO(this->get_logger(), "Took %d iterations, broke because: %s, success %s. Elapsed time: %.2f microseconds.", 
-                iter, quik::breakreason2str(breakReason).c_str(), success ? "true" : "false", elapsed.count()/1e3);
+                iter, utilities::breakreason2str(breakReason).c_str(), success ? "true" : "false", elapsed.count()/1e3);
         });
 
         // Call Jacobian service

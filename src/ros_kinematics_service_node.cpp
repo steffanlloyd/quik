@@ -127,10 +127,10 @@ private:
 
         if(response->success){
             RCLCPP_INFO(this->get_logger(), "Successfully processed IK request. Took %d iterations, break reason: %s, normed error is %.4g. Elapsed time: %.2f microseconds.",
-                iter, quik::breakreason2str(breakReason).c_str(), e_star.norm(), elapsed.count()/1e3);
+                iter, utilities::breakreason2str(breakReason).c_str(), e_star.norm(), elapsed.count()/1e3);
         }else{
             RCLCPP_WARN(this->get_logger(), "Processed IK request. Warning: algorithm did not converge successfully (break reason is %s. Normed error is: %.4g)", 
-                quik::breakreason2str(breakReason).c_str(), e_star.norm());
+                utilities::breakreason2str(breakReason).c_str(), e_star.norm());
         }
     }
 

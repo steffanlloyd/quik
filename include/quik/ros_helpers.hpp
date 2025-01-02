@@ -101,7 +101,7 @@ Robot<DOF> robotFromNodeParameters(rclcpp::Node& node)
 
     // Link types
     std::vector<JointType_t> link_types_data;
-    for (const auto& lt : link_types_str) link_types_data.push_back( quik::str2jointtype(lt)); // Convert from string to JointType_t
+    for (const auto& lt : link_types_str) link_types_data.push_back( utilities::str2jointtype(lt)); // Convert from string to JointType_t
     Vector<JointType_t,DOF> link_types = Map<Vector<JointType_t,DOF>, Unaligned>(link_types_data.data(), link_types_data.size());
 
     // Q sign
@@ -162,7 +162,7 @@ IKSolver<DOF,6> IKSolverFromNodeParameters(
         R,
         std::make_shared<WorldConstraint<6>>(),
         node.declare_parameter("max_iterations", 200),
-        quik::str2algorithm(node.declare_parameter("algorithm", "ALGORITHM_QUIK")),
+        utilities::str2algorithm(node.declare_parameter("algorithm", "ALGORITHM_QUIK")),
         node.declare_parameter("exit_tolerance", 1e-12),
         node.declare_parameter("minimum_step_size", 1e-14),
         node.declare_parameter("relative_improvement_tolerance", 0.05),

@@ -123,7 +123,7 @@ int main()
 	cout << e_star << endl << endl;
 	cout << "Final normed error is: " << endl << e_star.array().square().colwise().sum().sqrt() << endl << endl;
 	cout << "Break reason is: " << endl;
-    for (const auto& reason : breakReason) cout << breakreason2str(reason) << ' ';
+    for (const auto& reason : breakReason) cout << utilities::breakreason2str(reason) << ' ';
     cout << endl;
 	cout << "Number of iterations: " << endl;
     for (const auto& iter_i : iter) cout << iter_i << ' ';

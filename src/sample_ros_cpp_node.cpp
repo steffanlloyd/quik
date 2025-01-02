@@ -37,13 +37,13 @@ public:
         // Parse robot parameters, build robot and assign it to this->R
         // Note that robotFromNodeParameters is templated with DOF=6 to result in a fixed-size robot.
         // The YAML file must now contain a DOF=6 robot, otherwise an error will be triggered.
-        this->R = std::make_shared<quik::Robot<DOF>>(quik::ros_helpers::robotFromNodeParameters<DOF>(*this));
+        this->R = std::make_shared<Robot<DOF>>(ros_helpers::robotFromNodeParameters<DOF>(*this));
         RCLCPP_INFO(this->get_logger(), "Loaded robot successfully. Robot configuration is:");
         this->R->print();
 
         // Build IKSolver and declare parameters
         // IKSolver in this case must also be templated with DOF=6.
-        this->IKS = std::make_shared<IKSolver<DOF,6>>(quik::ros_helpers::IKSolverFromNodeParameters<DOF>(*this, this->R));
+        this->IKS = std::make_shared<IKSolver<DOF,6>>(ros_helpers::IKSolverFromNodeParameters<DOF>(*this, this->R));
           RCLCPP_INFO(this->get_logger(), "Built IKSolver object. Configuration is:");
         this->IKS->printOptions();
 
@@ -101,7 +101,7 @@ private:
             utilities::eigen2str(q_star.transpose()).c_str());
         RCLCPP_INFO(this->get_logger(), "Normed error: %.4g", e_star.norm());
         RCLCPP_INFO(this->get_logger(), "Took %d iterations, broke because: %s, success %s. Elapsed time: %.2f microseconds.", 
-            iter, quik::breakreason2str(breakReason).c_str(), success ? "true" : "false", elapsed.count()/1e3);
+            iter, utilities::breakreason2str(breakReason).c_str(), success ? "true" : "false", elapsed.count()/1e3);
     }
 
     rclcpp::TimerBase::SharedPtr timer_;

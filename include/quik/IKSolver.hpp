@@ -71,51 +71,6 @@ using namespace std;
 
 namespace quik{
 
-enum BreakReason_t : uint8_t {
-    BREAKREASON_TOLERANCE = 0, // Tolerance reached
-    BREAKREASON_MIN_STEP, // minimum step size is reached
-    BREAKREASON_MAX_ITER, // Max iterations reached
-    BREAKREASON_GRAD_FAILS // Gradient failed to improve
-};
-
-inline BreakReason_t str2breakreason(std::string breakReason) {
-    if (breakReason == "BREAKREASON_TOLERANCE") return BREAKREASON_TOLERANCE;
-    else if (breakReason == "BREAKREASON_MIN_STEP") return BREAKREASON_MIN_STEP;
-    else if (breakReason == "BREAKREASON_MAX_ITER") return BREAKREASON_MAX_ITER;
-    else if (breakReason == "BREAKREASON_GRAD_FAILS") return BREAKREASON_GRAD_FAILS;
-    else throw std::runtime_error("Invalid BREAKREASON string");
-};
-
-inline std::string breakreason2str(BreakReason_t breakReason) {
-    switch(breakReason) {
-        case BREAKREASON_TOLERANCE: return "BREAKREASON_TOLERANCE";
-        case BREAKREASON_MIN_STEP: return "BREAKREASON_MIN_STEP";
-        case BREAKREASON_MAX_ITER: return "BREAKREASON_MAX_ITER";
-        case BREAKREASON_GRAD_FAILS: return "BREAKREASON_GRAD_FAILS";
-        default: return "UNKNOWN_BREAKREASON";
-    }
-};
-
-enum Algorithm_t : uint8_t {
-    ALGORITHM_QUIK = 0, // Recommended: The QuIK method
-    ALGORITHM_NR, // Newton-Raphson or Levenberg-Marquardt
-};
-
-inline Algorithm_t str2algorithm(const std::string& algorithm)
-{
-    if (algorithm == "ALGORITHM_QUIK") return ALGORITHM_QUIK;
-    else if (algorithm == "ALGORITHM_NR") return ALGORITHM_NR;
-    else throw std::runtime_error("Invalid Algorithm_t string");
-};
-
-inline std::string algorithm2str(Algorithm_t algorithm) {
-    switch(algorithm) {
-        case ALGORITHM_QUIK: return "ALGORITHM_QUIK";
-        case ALGORITHM_NR: return "ALGORITHM_NR";
-        default: return "UNKNOWN_ALGORITHM";
-    }
-};
-
 template<int DOF=Dynamic, int m=Dynamic>
 class IKSolver {
 public:
@@ -515,7 +470,7 @@ public:
         // Convert to homogenous transform
         int N = quat.cols();
         Matrix<double,Dynamic,4> Twt(N*4,4);
-        quik::geometry::quatpos2hgt(quat, d, Twt);
+        geometry::quatpos2hgt(quat, d, Twt);
 
         // Call the first version of IK
         this->IK(Twt, Q0, Q_star, e_star, iter, breakReason);
@@ -586,7 +541,7 @@ public:
 	void printOptions() const
     {
         cout << "\tIKSolver.max_iterations: " << this->max_iterations << endl;
-        cout << "\tIKSolver.algorithm: " << quik::algorithm2str(this->algorithm) << endl;
+        cout << "\tIKSolver.algorithm: " << utilities::algorithm2str(this->algorithm) << endl;
         cout << "\tIKSolver.exit_tolerance: " << this->exit_tolerance << endl;
         cout << "\tIKSolver.minimum_step_size: " << this->minimum_step_size << endl;
         cout << "\tIKSolver.relative_improvement_tolerance: " << this->relative_improvement_tolerance << endl;
